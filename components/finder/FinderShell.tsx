@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT } from '@/lib/motion';
 import type { Listing, VoiceStatus } from '@/lib/types';
 import { search } from '@/lib/api';
+import { track } from '@/lib/track';
 import { useVoiceInput } from '@/lib/useVoiceInput';
 import { cancelSpeech } from '@/lib/useSpeech';
 import MicButton from './MicButton';
@@ -54,6 +55,7 @@ export default function FinderShell() {
       return;
     }
 
+    track('search', `Searched “${query.slice(0, 60)}” — ${result.totalCount} match${result.totalCount !== 1 ? 'es' : ''}`);
     setListings(result.listings);
     setTotalCount(result.totalCount);
     setSummary(result.spokenSummary);

@@ -3,10 +3,15 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { TourMeta, SplatTourHandle, VoiceStatus } from '@/lib/types';
-import { parseNav } from '@/lib/api';
+import { parseNav, ask } from '@/lib/api';
 import { speak } from '@/lib/useSpeech';
+import { track } from '@/lib/track';
+import { mockListings } from '@/lib/mockListings';
+import { getHouseFacts } from '@/lib/houseFacts';
 import { popIn, EASE_OUT } from '@/lib/motion';
 import TourVoiceBar from './TourVoiceBar';
+import HouseInfoPanel from './HouseInfoPanel';
+import BookingModal from './BookingModal';
 
 interface TourShellProps {
   tour: TourMeta;
@@ -21,15 +26,24 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
   const [currentWaypoint, setCurrentWaypoint] = useState(tour.waypoints[0]);
   const [statusMsg, setStatusMsg] = useState('');
   const [showHint, setShowHint] = useState(true); // controls hint, auto-fades
+  const [showBooking, setShowBooking] = useState(false);
+  const [answer, setAnswer] = useState<{ q: string; a: string } | null>(null);
+  const answerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const listing = mockListings.find((l) => l.id === tour.listingId);
+  const realtor = listing ? getHouseFacts(listing).realtor : { name: 'the listing agent', agency: '', phone: '' };
 
   useEffect(() => {
     const t = setTimeout(() => setShowHint(false), 7000);
+    track('tour_open', `Opened the tour of ${tour.address}`, { listingId: tour.listingId });
     return () => clearTimeout(t);
-  }, []);
+  }, [tour.address, tour.listingId]);
 
   const onTourSpeech = useCallback(async (transcript: string) => {
     setVoiceStatus('thinking');
-    setStatusMsg('Navigating…');
+    setStatusMsg('Thinking…');
+    if (answerTimer.current) clearTimeout(answerTimer.current);
+    setAnswer(null);
 
     const res = await parseNav(
       transcript,
@@ -37,37 +51,39 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
     );
 
     if (res.ok) {
+      // It's a navigation command — move the camera.
       splatRef.current?.apply(res.command);
       const c = res.command;
       const last = tour.waypoints.length - 1;
+      let movedTo: string | null = null;
       if (c.type === 'goto' && c.waypointId) {
         const i = tour.waypoints.findIndex((w) => w.id === c.waypointId);
-        if (i >= 0) { idxRef.current = i; setCurrentWaypoint(tour.waypoints[i]); }
+        if (i >= 0) { idxRef.current = i; setCurrentWaypoint(tour.waypoints[i]); movedTo = tour.waypoints[i].label; }
       } else if (c.type === 'reset') {
-        idxRef.current = 0;
-        setCurrentWaypoint(tour.waypoints[0]);
+        idxRef.current = 0; setCurrentWaypoint(tour.waypoints[0]); movedTo = tour.waypoints[0].label;
       } else if (c.type === 'next') {
-        idxRef.current = Math.min(last, idxRef.current + 1);
-        setCurrentWaypoint(tour.waypoints[idxRef.current]);
+        idxRef.current = Math.min(last, idxRef.current + 1); setCurrentWaypoint(tour.waypoints[idxRef.current]); movedTo = tour.waypoints[idxRef.current].label;
       } else if (c.type === 'prev') {
-        idxRef.current = Math.max(0, idxRef.current - 1);
-        setCurrentWaypoint(tour.waypoints[idxRef.current]);
+        idxRef.current = Math.max(0, idxRef.current - 1); setCurrentWaypoint(tour.waypoints[idxRef.current]); movedTo = tour.waypoints[idxRef.current].label;
       }
       // turn / tilt / move / zoom / look: stay on the current waypoint label
       speak(c.speech);
       setStatusMsg(c.speech);
+      if (movedTo) track('navigate', `Moved to the ${movedTo} of ${tour.address}`, { listingId: tour.listingId });
+      setVoiceStatus('speaking');
+      setTimeout(() => { setVoiceStatus('idle'); setStatusMsg(''); }, 3000);
     } else {
-      const fallback = res.spokenFallback ?? "I didn't catch that.";
-      speak(fallback);
-      setStatusMsg(fallback);
-    }
-
-    setVoiceStatus('speaking');
-    setTimeout(() => {
-      setVoiceStatus('idle');
+      // Not a navigation command — answer it as a question about this home.
+      setStatusMsg('Looking that up…');
+      const a = await ask(tour.listingId, transcript, currentWaypoint.label);
+      setAnswer({ q: transcript, a: a.answer });
       setStatusMsg('');
-    }, 3000);
-  }, [tour.waypoints]);
+      speak(a.spoken);
+      setVoiceStatus('speaking');
+      answerTimer.current = setTimeout(() => setAnswer(null), 16000);
+      setTimeout(() => setVoiceStatus('idle'), 3000);
+    }
+  }, [tour.waypoints, tour.listingId, tour.address, currentWaypoint.label]);
 
   return (
     <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-bg">
@@ -131,6 +147,32 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
           <TourPlaceholder tour={tour} currentWaypoint={currentWaypoint.id} />
         )}
 
+        {/* House info — Apple-glass facts panel, top-right */}
+        <HouseInfoPanel
+          listingId={tour.listingId}
+          currentRoom={currentWaypoint.label}
+          onBook={() => setShowBooking(true)}
+        />
+
+        {/* Q&A answer card */}
+        <AnimatePresence>
+          {answer && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              transition={{ duration: 0.32, ease: EASE_OUT }}
+              className="absolute inset-x-3 bottom-28 z-20 mx-auto max-w-xl sm:inset-x-0"
+            >
+              <div className="glass-strong rounded-2xl border-white/10 p-4">
+                <p className="mb-1 text-[11px] uppercase tracking-wider text-textdim">You asked · {currentWaypoint.label}</p>
+                <p className="text-xs italic text-textdim">&ldquo;{answer.q}&rdquo;</p>
+                <p className="mt-2 text-sm leading-relaxed text-text">{answer.a}</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Controls hint (auto-fades) */}
         <AnimatePresence>
           {showHint && (
@@ -190,6 +232,19 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
 
       {/* Voice bar */}
       <TourVoiceBar onSpeech={onTourSpeech} externalStatus={voiceStatus} />
+
+      {/* Book-a-viewing modal */}
+      <AnimatePresence>
+        {showBooking && (
+          <BookingModal
+            listingId={tour.listingId}
+            address={tour.address}
+            realtorName={realtor.name}
+            realtorPhone={realtor.phone}
+            onClose={() => setShowBooking(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

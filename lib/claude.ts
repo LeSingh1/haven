@@ -202,6 +202,33 @@ export function keywordNav(
   return { type: 'unknown', speech: '' };
 }
 
+// ── house Q&A ──
+const ASK_SYSTEM = `You are a warm, knowledgeable real-estate guide helping someone explore ONE specific affordable, accessible home — hands-free, by voice. Answer their question about THIS home using ONLY the facts provided.
+- Be concise and conversational: 1-3 sentences, like you're standing in the home with them.
+- If they're looking at a specific room, ground the answer there when relevant.
+- If a detail isn't in the data, say you don't have it and offer to have the realtor confirm — never invent prices, dates, square footage, or features.
+- This is an accessibility-first product; be clear and friendly.`;
+
+/** Answer a natural-language question about a specific home using its facts brief. */
+export async function answerHouseQuestion(
+  question: string,
+  brief: string,
+  room?: string
+): Promise<string> {
+  const ctx = room ? `\n\nThe person is currently viewing: ${room}.` : '';
+  const msg = await client().messages.create({
+    model: MODEL,
+    max_tokens: 240,
+    system: ASK_SYSTEM,
+    messages: [{ role: 'user', content: `HOME FACTS:\n${brief}${ctx}\n\nTHEIR QUESTION: ${question}` }],
+  });
+  const text = msg.content
+    .map((b) => (b.type === 'text' ? b.text : ''))
+    .join(' ')
+    .trim();
+  return text || "I'm not certain about that — I can have the realtor follow up with you.";
+}
+
 /** Tiny liveness probe used by /api/health. */
 export async function pingClaude(): Promise<boolean> {
   try {

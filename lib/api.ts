@@ -133,3 +133,22 @@ export async function parseNav(
     };
   }
 }
+
+/** Ask a natural-language question about the home being toured. */
+export async function ask(
+  listingId: string,
+  question: string,
+  room?: string
+): Promise<{ ok: boolean; answer: string; spoken: string }> {
+  try {
+    const res = await fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listingId, question, room }),
+    });
+    return await res.json();
+  } catch {
+    const msg = "I couldn't reach the assistant just now — please try again.";
+    return { ok: false, answer: msg, spoken: msg };
+  }
+}

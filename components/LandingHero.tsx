@@ -108,6 +108,10 @@ export default function LandingHero() {
         {/* Footer note */}
         <motion.p variants={fadeUpSm} className="mt-16 max-w-md text-xs leading-relaxed text-textdim/70">
           Chrome + HTTPS required for voice features. Keyboard + text fallbacks always available.
+          {' '}
+          <Link href="/dashboard" className="text-accent/80 underline-offset-2 hover:underline">
+            View live activity →
+          </Link>
         </motion.p>
       </motion.section>
     </main>
