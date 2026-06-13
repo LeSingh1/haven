@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(p.get\\('name',''\\), '-', p.get\\('description',''\\)[:80]\\) for p in data.get\\('plugins',[]\\)]\")",
+      "Bash(npx uipro *)",
+      "WebSearch",
+      "Bash(npm install *)",
+      "Bash(~/.npm-global/bin/uipro init *)",
+      "Read(//Users/shivamshimpi/.claude/**)",
+      "Read(//Users/shivamshimpi/.claude/skills/**)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --no-src-dir --import-alias=\"@/*\" --yes)"
+    ]
+  }
+}

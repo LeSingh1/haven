@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg: #0A0A0B;
+  --color-surface: #141416;
+  --color-surface2: #1C1C1F;
+  --color-line: #26262A;
+  --color-text: #F4F4F5;
+  --color-textdim: #A1A1AA;
+  --color-accent: #22D3EE;
+  --color-good: #4ADE80;
+  --color-warn: #FBBF24;
+  --color-bad: #F43F5E;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  --background: #0A0A0B;
+  --foreground: #F4F4F5;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans, Arial, Helvetica, sans-serif);
+}
+
+/* Visible focus ring for keyboard navigation — WCAG 2.4.7 */
+:focus-visible {
+  outline: 2px solid #22D3EE;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Respect prefers-reduced-motion — WCAG 2.3.3 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Pulse animation for mic listening state */
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.4); }
+  50%       { box-shadow: 0 0 0 12px rgba(34, 211, 238, 0); }
+}
+
+.mic-pulse {
+  animation: mic-pulse 1.4s ease-in-out infinite;
+}
