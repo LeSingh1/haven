@@ -2,11 +2,32 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 
+// Maps Web Speech API error codes to plain, actionable guidance for the user.
+// Without this, a blocked mic fails silently — the user taps "speak" and nothing
+// happens, with no idea why. Returns null for transient codes we shouldn't surface.
+function voiceErrorMessage(code: string): string | null {
+  switch (code) {
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return "Microphone access is blocked. Click the lock/camera icon in your browser's address bar, allow the microphone, then tap to speak again — or just type your search below.";
+    case 'audio-capture':
+      return 'No microphone was found. Plug one in or type your search below.';
+    case 'network':
+      return 'Voice recognition needs a connection and works best in Chrome. Type your search below if it keeps failing.';
+    case 'no-speech':
+    case 'aborted':
+      return null; // transient — Chrome restarts on its own; don't nag the user
+    default:
+      return 'Voice input ran into a problem. Try again, or type your search below.';
+  }
+}
+
 export function useVoiceInput(onTranscript: (t: string) => void) {
   const recRef = useRef<SpeechRecognition | null>(null);
   const wantRef = useRef(false); // ref so onend closure sees current value
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const Ctor =
@@ -38,7 +59,11 @@ export function useVoiceInput(onTranscript: (t: string) => void) {
     };
 
     r.onerror = (e: SpeechRecognitionErrorEvent) => {
-      if (e.error === 'not-allowed') {
+      const msg = voiceErrorMessage(e.error);
+      if (msg) setError(msg);
+      // Fatal errors won't recover on a restart — stop wanting to listen so the
+      // onend handler doesn't loop, and drop out of the listening state.
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') {
         wantRef.current = false;
         setListening(false);
       }
@@ -63,6 +88,7 @@ export function useVoiceInput(onTranscript: (t: string) => void) {
   }, [onTranscript]);
 
   const start = useCallback(() => {
+    setError(null);
     wantRef.current = true;
     setListening(true);
     try {
@@ -81,5 +107,5 @@ export function useVoiceInput(onTranscript: (t: string) => void) {
     setSupported(!!(window.SpeechRecognition ?? window.webkitSpeechRecognition));
   }, []);
 
-  return { listening, interim, start, stop, supported };
+  return { listening, interim, start, stop, supported, error };
 }

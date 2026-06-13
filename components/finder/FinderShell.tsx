@@ -71,11 +71,17 @@ export default function FinderShell() {
   useEffect(() => { runSearchRef.current = runSearch; }, [runSearch]);
   const stableHandler = useCallback((t: string) => runSearchRef.current(t), []);
 
-  const { listening, interim, start, stop, supported } = useVoiceInput(stableHandler);
+  const { listening, interim, start, stop, supported, error: voiceError } = useVoiceInput(stableHandler);
 
   useEffect(() => {
     if (listening && status !== 'listening') setStatus('listening');
   }, [listening, status]);
+
+  // Unstick the mic when recognition ends on its own (e.g. permission denied):
+  // otherwise the button stays on "Listening…" forever with nothing happening.
+  useEffect(() => {
+    if (!listening) setStatus((p) => (p === 'listening' ? 'idle' : p));
+  }, [listening]);
 
   const handleStart = useCallback(() => {
     cancelSpeech();
@@ -121,6 +127,14 @@ export default function FinderShell() {
         <div className="flex flex-col items-center gap-6">
           <MicButton status={status} onStart={handleStart} onStop={handleStop} supported={supported} />
           <TranscriptBar interim={interim} transcript={transcript} />
+          {voiceError && (
+            <p
+              role="alert"
+              className="max-w-md rounded-xl border border-warn/40 bg-warn/10 px-4 py-2.5 text-center text-xs text-warn backdrop-blur-md"
+            >
+              {voiceError}
+            </p>
+          )}
         </div>
 
         {/* Text fallback */}
