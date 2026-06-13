@@ -76,9 +76,10 @@ export function useVoiceInput(onTranscript: (t: string) => void) {
     recRef.current?.stop();
   }, []);
 
-  const supported =
-    typeof window !== 'undefined' &&
-    !!(window.SpeechRecognition ?? window.webkitSpeechRecognition);
+  const [supported, setSupported] = useState(false);
+  useEffect(() => {
+    setSupported(!!(window.SpeechRecognition ?? window.webkitSpeechRecognition));
+  }, []);
 
   return { listening, interim, start, stop, supported };
 }
