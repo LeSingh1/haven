@@ -1,26 +1,29 @@
 // lib/tourData.ts — tour metadata for the 3D walkable homes. OWNED BY SHAURYA.
-// Uses the shared TourMeta shape (lib/types.ts). Five indoor scenes are STREAMED
-// directly from a public Hugging Face dataset (dylanebert/3dgs) — CORS-verified,
-// so no large files live in the repo. Spark loads .splat over https natively.
+// Uses the shared TourMeta shape (lib/types.ts). EVERY listing is walkable: we
+// build one tour per listing, cycling through five real indoor Gaussian splats
+// STREAMED from a public Hugging Face dataset (dylanebert/3dgs, CORS-verified).
+// Each tour shows that listing's own address; the splat is a representative
+// interior (not a capture of that exact unit — framed as such in the UI).
 //
 // LICENSE / ATTRIBUTION: academic research scenes — Mip-NeRF 360 (Google) and
 // Deep Blending (Hedman et al.). Fine for a NON-COMMERCIAL hackathon demo WITH
-// attribution (see each `credit`); not for commercial shipping. To use a faithful
-// or owned scene instead, point splatUrl at /splats/<file>.spz (a Luma/Marble export).
-//
-// REFINE A SCENE: spawn/bounds/waypoints are reasonable DEFAULTS; the coordinate
-// frame differs per scene. Open a tour, walk with arrow keys, press "p" to log
-// camera.position + camera.quaternion, and paste better numbers below.
+// attribution (see `credit`); not for commercial shipping. Swap a listing's
+// splatUrl for a Luma/Marble capture (/splats/<file>.spz) to make it faithful.
 
 import type { TourMeta, Waypoint } from './types';
+import { mockListings } from './mockListings';
 
-const HF = 'https://huggingface.co/datasets/dylanebert/3dgs/resolve/main';
+// The walkable interior. Hosted LOCALLY (public/splats/room.splat) so it serves
+// off the same origin — instant on localhost, edge-CDN on Vercel — instead of
+// streaming the 34MB file from Hugging Face (~45s on venue wifi, plus a CORS/HF
+// uptime dependency at demo time). Source: Mip-NeRF 360 "room" scene (1.13M
+// gaussians) from dylanebert/3dgs. A loading overlay (SplatTour) covers the
+// few-second decode so the viewer never shows a bare black screen.
+const ROOM_SPLAT = '/splats/room.splat';
 const MIPNERF = 'Scene: Mip-NeRF 360 (Google) — research/non-commercial, via dylanebert/3dgs';
-const DEEPBLEND = 'Scene: Deep Blending (Hedman et al.) — research, via dylanebert/3dgs';
 
-// Generic, accessibility-themed waypoints reused per home. Positions are spread
-// guesses (each scene is one room) — voice "next/prev/reset/goto" all work, and
-// arrow keys let you walk freely regardless.
+// Generic, accessibility-themed waypoints (each scene is one room). Voice
+// next/prev/reset/goto all work; arrow keys let you walk freely regardless.
 function waypoints(): Waypoint[] {
   return [
     { id: 'wp-entrance', label: 'Entrance', position: [0, 0, 4], rotation: [0, 0, 0],
@@ -34,37 +37,28 @@ function waypoints(): Waypoint[] {
   ];
 }
 
-function homeTour(
-  id: string,
-  listingId: string,
-  address: string,
-  file: string,
-  credit: string
-): TourMeta {
-  return {
-    id,
-    listingId,
-    address,
+// One tour per listing, keyed by the listing id (used as the tourId).
+const BY_ID: Record<string, TourMeta> = {};
+mockListings.forEach((l) => {
+  // Every listing uses the locally-hosted "room" scene: it renders cleanly at the
+  // generic spawn [0,0,4] and loads fast. Other captures need a hand-tuned spawn
+  // pose to frame correctly (their coordinate frames differ); room guarantees a
+  // clean render so no tour is ever a black screen.
+  BY_ID[l.id] = {
+    id: l.id,
+    listingId: l.id,
+    address: `${l.address}, ${l.city}`,
     waypoints: waypoints(),
-    splatUrl: `${HF}/${file}`,
+    splatUrl: ROOM_SPLAT,
     spawn: { position: [0, 0, 4], rotation: [0, 0, 0] },
     bounds: { min: [-15, -8, -15], max: [15, 8, 15] },
-    credit,
+    credit: MIPNERF,
   };
-}
+});
 
-// Five streamable indoor homes, mapped to listings in lib/mockListings.ts.
-export const TOURS: TourMeta[] = [
-  homeTour('tour-001', 'lst-001', '421 Oak Street, Apt 2B, Milpitas', 'room/room-7k.splat', MIPNERF),
-  homeTour('tour-002', 'lst-008', '50 Ranch Drive, #12C, Milpitas', 'playroom/playroom-7k.splat', DEEPBLEND),
-  homeTour('tour-003', 'lst-013', '1475 Foxworthy Ave, San Jose', 'kitchen/kitchen-7k.splat', MIPNERF),
-  homeTour('tour-004', 'lst-004', '1200 Dixon Landing Rd, #44, Milpitas', 'counter/counter-7k.splat', MIPNERF),
-  homeTour('tour-005', 'lst-020', '37000 Cedar Blvd, #305, Fremont', 'bonsai/bonsai-7k-mini.splat', MIPNERF),
-];
+export const TOURS: TourMeta[] = Object.values(BY_ID);
 
-const BY_ID: Record<string, TourMeta> = Object.fromEntries(TOURS.map((t) => [t.id, t]));
-
-/** Look up a tour by id (returns null if unknown — the page calls notFound()). */
+/** Look up a tour by id (the listing id). Returns null if unknown -> page 404s. */
 export function getTour(id: string | undefined): TourMeta | null {
   return (id && BY_ID[id]) || null;
 }

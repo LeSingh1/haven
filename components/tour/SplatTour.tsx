@@ -8,7 +8,7 @@
 //
 // Implements the shared contract: tour: TourMeta, NavCommand { type, waypointId?, speech }.
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark';
 import type { NavCommand, SplatTourHandle, TourMeta } from '@/lib/types';
@@ -36,6 +36,7 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
   ref
 ) {
   const mountRef = useRef<HTMLDivElement>(null);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const camRef = useRef<THREE.PerspectiveCamera | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
   const idxRef = useRef(0);
@@ -97,6 +98,8 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
+    let cancelled = false;
+    setStatus('loading');
 
     const bounds = tour.bounds ?? { min: [-15, -8, -15] as const, max: [15, 8, 15] as const };
     const splatUrl = tour.splatUrl ?? '/splats/sample.spz';
@@ -120,8 +123,17 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
       splat = new SplatMesh({ url: splatUrl });
       splat.quaternion.set(1, 0, 0, 0); // Spark loads Y-down; 180° flip about X
       scene.add(splat);
+      // Spark resolves `initialized` once the splat is decoded and ready to draw.
+      // Until then the scene is empty (black) — drive the loading overlay off this.
+      splat.initialized
+        .then(() => { if (!cancelled) setStatus('ready'); })
+        .catch((e) => {
+          console.error('[SplatTour] splat failed to initialize:', splatUrl, e);
+          if (!cancelled) setStatus('error');
+        });
     } catch (e) {
       console.error('[SplatTour] failed to load splat:', splatUrl, e);
+      setStatus('error');
     }
 
     const clamp = (cam: THREE.PerspectiveCamera) => {
@@ -188,6 +200,7 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
     window.addEventListener('resize', onResize);
 
     return () => {
+      cancelled = true;
       renderer.setAnimationLoop(null);
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);
@@ -199,7 +212,49 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
     };
   }, [tour]);
 
-  return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+      {status !== 'ready' && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: '16px',
+            background: 'rgba(8,10,16,0.92)', color: '#e7ecf5',
+            fontFamily: 'system-ui, sans-serif', textAlign: 'center', padding: '24px',
+            pointerEvents: status === 'error' ? 'auto' : 'none',
+          }}
+        >
+          {status === 'loading' ? (
+            <>
+              <div
+                aria-hidden
+                style={{
+                  width: 44, height: 44, borderRadius: '50%',
+                  border: '3px solid rgba(255,255,255,0.15)', borderTopColor: '#6ea8fe',
+                  animation: 'haven-spin 0.9s linear infinite',
+                }}
+              />
+              <div style={{ fontSize: 16, fontWeight: 600 }}>Entering the home…</div>
+              <div style={{ fontSize: 13, opacity: 0.7, maxWidth: 320 }}>
+                Loading the 3D space. You&apos;ll be able to walk through with the arrow keys or your voice.
+              </div>
+              <style>{`@keyframes haven-spin { to { transform: rotate(360deg); } }`}</style>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 16, fontWeight: 600 }}>Couldn&apos;t load the 3D tour</div>
+              <div style={{ fontSize: 13, opacity: 0.7, maxWidth: 340 }}>
+                The 3D model failed to load. Check your connection and refresh the page.
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
 });
 
 export default SplatTour;

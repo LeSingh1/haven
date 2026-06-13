@@ -65,7 +65,9 @@ export async function POST(req: Request): Promise<Response> {
     query = parseHousingQuery(transcript);
   }
 
-  const listings = filterAndRank(query);
+  // Every listing is walkable — each opens a representative 3D tour keyed by its
+  // own id (lib/tourData.ts builds a per-listing tour with that listing's address).
+  const listings = filterAndRank(query).map((l) => ({ ...l, hasTour: true, tourId: l.id }));
   const resp: SearchResponse = {
     ok: true,
     listings,
