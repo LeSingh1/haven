@@ -162,9 +162,11 @@ export function keywordNav(
 
   // 5. Move (strafing / forward / backward). "back up", "backward", "reverse" => move back.
   const moveVerb = has(/\b(move|step|walk|go|slide|scoot|strafe|come|head)\b/);
+  // For "back", exclude go/come so "go back" / "come back" route to prev (step 8).
+  const moveBackVerb = has(/\b(move|step|walk|slide|scoot|strafe)\b/);
   if (has(/\b(forward|forwards|ahead|straight)\b/))
     return { type: 'move', direction: 'forward', speech: 'Moving forward.' };
-  if (has(/\b(backward|backwards|reverse)\b/) || has(/\bback up\b/) || (moveVerb && has(/\bback\b/)))
+  if (has(/\b(backward|backwards|reverse)\b/) || has(/\bback up\b/) || (moveBackVerb && has(/\bback\b/)))
     return { type: 'move', direction: 'back', speech: 'Stepping back.' };
   if (moveVerb && has(/\bleft\b/)) return { type: 'move', direction: 'left', speech: 'Sliding left.' };
   if (moveVerb && has(/\bright\b/)) return { type: 'move', direction: 'right', speech: 'Sliding right.' };
