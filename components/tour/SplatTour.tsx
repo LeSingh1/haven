@@ -31,6 +31,20 @@ function eulerToQuat(rot?: [number, number, number]): THREE.Quaternion {
   return new THREE.Quaternion().setFromEuler(e);
 }
 
+// FPS-style orientation from yaw (about world up) + pitch (about local right),
+// with no roll. YXZ order keeps "turn then look up/down" feeling natural.
+function quatFromYawPitch(yawDeg: number, pitchDeg: number): THREE.Quaternion {
+  const e = new THREE.Euler(
+    THREE.MathUtils.degToRad(pitchDeg),
+    THREE.MathUtils.degToRad(yawDeg),
+    0,
+    'YXZ'
+  );
+  return new THREE.Quaternion().setFromEuler(e);
+}
+
+const clampNum = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
 const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
   { tour, onReady, reducedMotion = false },
   ref
@@ -40,54 +54,118 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
   const camRef = useRef<THREE.PerspectiveCamera | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
   const idxRef = useRef(0);
+  const yawRef = useRef(0);   // degrees — current view yaw (source of truth for turns)
+  const pitchRef = useRef(0); // degrees — current view pitch (clamped)
   const animRef = useRef<{
     fromP: THREE.Vector3; toP: THREE.Vector3;
     fromQ: THREE.Quaternion; toQ: THREE.Quaternion; t: number; dur: number;
   } | null>(null);
 
-  const flyTo = useCallback(
-    (pos: [number, number, number], rot?: [number, number, number]) => {
+  // Smoothly animate the camera to a target pose (or snap if reduced-motion).
+  const glide = useCallback(
+    (toP: THREE.Vector3, toQ: THREE.Quaternion, dur = 1.0) => {
       const cam = camRef.current;
       if (!cam) return;
-      const toP = new THREE.Vector3(...pos);
-      const toQ = eulerToQuat(rot);
       if (reducedMotion) {
         cam.position.copy(toP);
         cam.quaternion.copy(toQ);
       } else {
-        animRef.current = { fromP: cam.position.clone(), toP, fromQ: cam.quaternion.clone(), toQ, t: 0, dur: 1.4 };
+        animRef.current = { fromP: cam.position.clone(), toP, fromQ: cam.quaternion.clone(), toQ, t: 0, dur };
       }
     },
     [reducedMotion]
   );
 
-  // The single entry point the voice layer calls (NavCommand from /api/nav).
+  // The single entry point the voice/keyboard layer calls (NavCommand from /api/nav).
   const apply = useCallback(
     (cmd: NavCommand) => {
+      const cam = camRef.current;
+      if (!cam) return;
       const wps = tour.waypoints;
-      if (cmd.type === 'goto') {
-        const i = wps.findIndex((w) => w.id === cmd.waypointId);
-        if (i >= 0) { idxRef.current = i; flyTo(wps[i].position, wps[i].rotation); }
-      } else if (cmd.type === 'reset') {
-        idxRef.current = 0;
-        if (wps[0]) flyTo(wps[0].position, wps[0].rotation);
-      } else if (cmd.type === 'next') {
-        idxRef.current = Math.min(wps.length - 1, idxRef.current + 1);
-        const w = wps[idxRef.current];
-        if (w) flyTo(w.position, w.rotation);
-      } else if (cmd.type === 'prev') {
-        idxRef.current = Math.max(0, idxRef.current - 1);
-        const w = wps[idxRef.current];
-        if (w) flyTo(w.position, w.rotation);
-      } else if (cmd.type === 'look') {
-        const cam = camRef.current;
-        if (cam) {
-          const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(45));
-          cam.quaternion.premultiply(q);
+      const b = tour.bounds ?? { min: [-15, -8, -15] as const, max: [15, 8, 15] as const };
+      const clampPos = (v: THREE.Vector3) => {
+        v.x = clampNum(v.x, b.min[0], b.max[0]);
+        v.y = clampNum(v.y, b.min[1], b.max[1]);
+        v.z = clampNum(v.z, b.min[2], b.max[2]);
+        return v;
+      };
+      // Jump to waypoint i: set yaw/pitch from its rotation and fly there.
+      const gotoWp = (i: number) => {
+        const w = wps[i];
+        if (!w) return;
+        idxRef.current = i;
+        yawRef.current = w.rotation?.[1] ?? 0;
+        pitchRef.current = clampNum(w.rotation?.[0] ?? 0, -80, 80);
+        glide(new THREE.Vector3(...w.position), quatFromYawPitch(yawRef.current, pitchRef.current), 1.3);
+      };
+      // Current planar forward / right (y flattened) for moves.
+      const planarBasis = () => {
+        const fwd = new THREE.Vector3();
+        cam.getWorldDirection(fwd);
+        fwd.y = 0;
+        fwd.normalize();
+        const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+        return { fwd, right };
+      };
+
+      switch (cmd.type) {
+        case 'goto': {
+          const i = wps.findIndex((w) => w.id === cmd.waypointId);
+          gotoWp(i >= 0 ? i : 0);
+          break;
         }
+        case 'reset':
+          gotoWp(0);
+          break;
+        case 'next':
+          gotoWp(Math.min(wps.length - 1, idxRef.current + 1));
+          break;
+        case 'prev':
+          gotoWp(Math.max(0, idxRef.current - 1));
+          break;
+        case 'turn': {
+          const deg = cmd.amount ?? (cmd.direction === 'around' ? 180 : 60);
+          if (cmd.direction === 'right') yawRef.current -= deg;
+          else if (cmd.direction === 'around') yawRef.current += 180;
+          else yawRef.current += deg; // 'left' or unspecified
+          glide(cam.position.clone(), quatFromYawPitch(yawRef.current, pitchRef.current), 0.85);
+          break;
+        }
+        case 'tilt': {
+          const deg = cmd.amount ?? 25;
+          pitchRef.current = clampNum(pitchRef.current + (cmd.direction === 'down' ? -deg : deg), -80, 80);
+          glide(cam.position.clone(), quatFromYawPitch(yawRef.current, pitchRef.current), 0.7);
+          break;
+        }
+        case 'move': {
+          const m = cmd.amount ?? 1.2;
+          const { fwd, right } = planarBasis();
+          const to = cam.position.clone();
+          if (cmd.direction === 'back') to.addScaledVector(fwd, -m);
+          else if (cmd.direction === 'left') to.addScaledVector(right, -m);
+          else if (cmd.direction === 'right') to.addScaledVector(right, m);
+          else to.addScaledVector(fwd, m); // 'forward' or unspecified
+          glide(clampPos(to), cam.quaternion.clone(), 0.85);
+          break;
+        }
+        case 'zoom': {
+          const step = (cmd.amount ?? 1.2) * (cmd.direction === 'out' ? -1 : 1);
+          const fwd = new THREE.Vector3();
+          cam.getWorldDirection(fwd).normalize();
+          glide(clampPos(cam.position.clone().addScaledVector(fwd, step)), cam.quaternion.clone(), 0.75);
+          break;
+        }
+        case 'look': {
+          // generic "look around" — a gentle glance to the side
+          yawRef.current += 40;
+          glide(cam.position.clone(), quatFromYawPitch(yawRef.current, pitchRef.current), 0.8);
+          break;
+        }
+        default:
+          break; // 'unknown' — do nothing
       }
     },
-    [tour, flyTo]
+    [tour, glide]
   );
 
   useImperativeHandle(ref, () => ({ apply }), [apply]);
@@ -109,8 +187,13 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
     camera.position.set(...(tour.spawn?.position ?? [0, 0, 4]));
     camera.quaternion.copy(eulerToQuat(tour.spawn?.rotation));
     camRef.current = camera;
+    yawRef.current = tour.spawn?.rotation?.[1] ?? 0;
+    pitchRef.current = clampNum(tour.spawn?.rotation?.[0] ?? 0, -80, 80);
+    idxRef.current = 0;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    // preserveDrawingBuffer lets the canvas be screenshotted/sampled (used for
+    // share images and render verification); negligible cost for a single splat.
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mount.appendChild(renderer.domElement);

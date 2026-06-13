@@ -43,13 +43,13 @@ export async function POST(req: Request): Promise<Response> {
     command = keywordNav(transcript, waypoints);
   }
 
-  // keywordNav returns an empty 'look' when nothing matched — surface that as a miss.
-  if (command.type === 'look' && !command.speech) {
-    const labels = waypoints.map((w) => `"${w.label.toLowerCase()}"`).join(', ');
+  // 'unknown' (or an empty 'look') means nothing matched — surface that as a miss.
+  if (command.type === 'unknown' || (command.type === 'look' && !command.speech)) {
     const miss: NavParseResponse = {
       ok: false,
-      command: { type: 'reset', speech: '' },
-      spokenFallback: `I didn't catch that. Try ${labels}, "next", or "back".`,
+      command: { type: 'look', speech: '' },
+      spokenFallback:
+        'I can move you around the home — try "take me to the kitchen", "turn around", "look up", "move forward", "zoom in", or "next room".',
     };
     return Response.json(miss);
   }

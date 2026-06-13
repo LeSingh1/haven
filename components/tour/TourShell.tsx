@@ -14,6 +14,7 @@ interface TourShellProps {
 
 export default function TourShell({ tour, SplatTour }: TourShellProps) {
   const splatRef = useRef<SplatTourHandle>(null);
+  const idxRef = useRef(0); // mirrors SplatTour's waypoint index so the pill stays in sync
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle');
   const [currentWaypoint, setCurrentWaypoint] = useState(tour.waypoints[0]);
   const [statusMsg, setStatusMsg] = useState('');
@@ -29,14 +30,24 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
 
     if (res.ok) {
       splatRef.current?.apply(res.command);
-      if (res.command.waypointId) {
-        const wp = tour.waypoints.find((w) => w.id === res.command.waypointId);
-        if (wp) setCurrentWaypoint(wp);
-      } else if (res.command.type === 'reset') {
+      const c = res.command;
+      const last = tour.waypoints.length - 1;
+      if (c.type === 'goto' && c.waypointId) {
+        const i = tour.waypoints.findIndex((w) => w.id === c.waypointId);
+        if (i >= 0) { idxRef.current = i; setCurrentWaypoint(tour.waypoints[i]); }
+      } else if (c.type === 'reset') {
+        idxRef.current = 0;
         setCurrentWaypoint(tour.waypoints[0]);
+      } else if (c.type === 'next') {
+        idxRef.current = Math.min(last, idxRef.current + 1);
+        setCurrentWaypoint(tour.waypoints[idxRef.current]);
+      } else if (c.type === 'prev') {
+        idxRef.current = Math.max(0, idxRef.current - 1);
+        setCurrentWaypoint(tour.waypoints[idxRef.current]);
       }
-      speak(res.command.speech);
-      setStatusMsg(res.command.speech);
+      // turn / tilt / move / zoom / look: stay on the current waypoint label
+      speak(c.speech);
+      setStatusMsg(c.speech);
     } else {
       const fallback = res.spokenFallback ?? "I didn't catch that.";
       speak(fallback);

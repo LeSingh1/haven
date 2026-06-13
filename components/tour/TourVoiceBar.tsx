@@ -69,7 +69,7 @@ export default function TourVoiceBar({ onSpeech, externalStatus }: TourVoiceBarP
               type="text"
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
-              placeholder='e.g. "living room" or "next"'
+              placeholder='e.g. "take me to the kitchen" or "turn around"'
               className={[
                 'flex-1 min-h-[48px] rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-text',
                 'placeholder:text-textdim/70 transition-colors',
@@ -89,14 +89,16 @@ export default function TourVoiceBar({ onSpeech, externalStatus }: TourVoiceBarP
       </div>
 
       {supported && (
-        <p className="mt-3 text-center text-[11px] text-textdim/80">
-          Say: <span className="text-accent">"entrance"</span>,{' '}
-          <span className="text-accent">"living room"</span>,{' '}
-          <span className="text-accent">"kitchen"</span>,{' '}
-          <span className="text-accent">"bedroom"</span>,{' '}
-          <span className="text-accent">"next"</span>,{' '}
-          <span className="text-accent">"back"</span>, or{' '}
-          <span className="text-accent">"reset"</span>
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-textdim/80">
+          Try:{' '}
+          <span className="text-accent">"take me to the kitchen"</span>,{' '}
+          <span className="text-accent">"turn around"</span>,{' '}
+          <span className="text-accent">"look left"</span>,{' '}
+          <span className="text-accent">"look up"</span>,{' '}
+          <span className="text-accent">"move forward"</span>,{' '}
+          <span className="text-accent">"zoom in"</span>,{' '}
+          <span className="text-accent">"next room"</span>, or{' '}
+          <span className="text-accent">"start over"</span>
         </p>
       )}
     </div>

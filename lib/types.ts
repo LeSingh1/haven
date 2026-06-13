@@ -76,11 +76,40 @@ export interface TourMeta {
   credit?: string;
 }
 
-export type NavCommandType = 'goto' | 'look' | 'reset' | 'next' | 'prev';
+// goto/look/reset/next/prev are the original waypoint actions; turn/tilt/move/
+// zoom are relative camera motions so the whole home is explorable by voice.
+export type NavCommandType =
+  | 'goto'
+  | 'look'
+  | 'reset'
+  | 'next'
+  | 'prev'
+  | 'turn'   // rotate the view in place (yaw)
+  | 'tilt'   // look up / down (pitch)
+  | 'move'   // glide without turning
+  | 'zoom'   // dolly in / out
+  | 'unknown';
+
+export type NavDirection =
+  | 'left'
+  | 'right'
+  | 'around' // 180°
+  | 'up'
+  | 'down'
+  | 'forward'
+  | 'back'
+  | 'in'
+  | 'out';
 
 export interface NavCommand {
   type: NavCommandType;
+  /** Set only for "goto" — the target waypoint id. */
   waypointId?: string;
+  /** Set for turn/tilt/move/zoom — which way. */
+  direction?: NavDirection;
+  /** Magnitude: degrees for turn/tilt, meters for move, step factor for zoom. */
+  amount?: number;
+  /** Short, warm spoken confirmation. */
   speech: string;
 }
 

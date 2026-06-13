@@ -22,18 +22,21 @@ import { mockListings } from './mockListings';
 const ROOM_SPLAT = '/splats/room.splat';
 const MIPNERF = 'Scene: Mip-NeRF 360 (Google) — research/non-commercial, via dylanebert/3dgs';
 
-// Generic, accessibility-themed waypoints (each scene is one room). Voice
-// next/prev/reset/goto all work; arrow keys let you walk freely regardless.
+// Accessibility-themed waypoints. The scene is a single captured room, so we
+// "tour" it by standing in the well-captured CENTRAL column (x≈0, z 2.8–4) and
+// turning to face different areas — moving far sideways (old x=±3) flew the
+// camera outside the splat's captured volume and rendered black. Voice
+// goto/next/prev/reset and free walking (arrows/WASD) all work on top of these.
 function waypoints(): Waypoint[] {
   return [
     { id: 'wp-entrance', label: 'Entrance', position: [0, 0, 4], rotation: [0, 0, 0],
-      description: 'Step-free entry with a clear, wide path inside.' },
-    { id: 'wp-living', label: 'Living Room', position: [0, 0, 1.5], rotation: [0, 0, 0],
+      description: 'Step-free entry with a clear, wide path straight inside.' },
+    { id: 'wp-living', label: 'Living Room', position: [0, 0, 2.8], rotation: [0, 0, 0],
       description: 'Open living space with room for a wheelchair turning radius.' },
-    { id: 'wp-kitchen', label: 'Kitchen', position: [3, 0, 2], rotation: [0, -35, 0],
-      description: 'Accessible kitchen area with reachable counters.' },
-    { id: 'wp-bedroom', label: 'Bedroom', position: [-3, 0, 2.5], rotation: [0, 35, 0],
-      description: 'Quiet bedroom with an accessible bath nearby.' },
+    { id: 'wp-kitchen', label: 'Kitchen', position: [0, 0, 3.2], rotation: [0, -38, 0],
+      description: 'Turn right toward the accessible kitchen with reachable counters.' },
+    { id: 'wp-bedroom', label: 'Bedroom', position: [0, 0, 3.2], rotation: [0, 40, 0],
+      description: 'Turn left toward the quiet bedroom with an accessible bath nearby.' },
   ];
 }
 
@@ -51,7 +54,9 @@ mockListings.forEach((l) => {
     waypoints: waypoints(),
     splatUrl: ROOM_SPLAT,
     spawn: { position: [0, 0, 4], rotation: [0, 0, 0] },
-    bounds: { min: [-15, -8, -15], max: [15, 8, 15] },
+    // Keep the walker inside the well-captured volume so they can't wander into
+    // the black void around the edges of the capture.
+    bounds: { min: [-2.5, -1, -1], max: [2.5, 1.5, 5] },
     credit: MIPNERF,
   };
 });
