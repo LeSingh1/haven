@@ -1,9 +1,11 @@
 'use client';
 import { useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { TourMeta, SplatTourHandle, VoiceStatus } from '@/lib/types';
 import { parseNav } from '@/lib/api';
 import { speak } from '@/lib/useSpeech';
+import { popIn, EASE_OUT } from '@/lib/motion';
 import TourVoiceBar from './TourVoiceBar';
 
 interface TourShellProps {
@@ -88,20 +90,22 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
           {tour.waypoints.map((wp) => {
             const active = wp.id === currentWaypoint.id;
             return (
-              <button
+              <motion.button
                 key={wp.id}
                 type="button"
                 onClick={() => onTourSpeech(wp.label)}
                 aria-pressed={active}
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.95 }}
                 className={[
-                  'min-h-[36px] rounded-full border px-3 py-1 text-xs font-medium transition-all',
+                  'min-h-[36px] rounded-full border px-3 py-1 text-xs font-medium transition-colors',
                   active
                     ? 'border-accent bg-accent/15 text-accent shadow-[0_0_18px_-4px_rgba(34,211,238,0.7)]'
                     : 'border-white/10 bg-white/[0.03] text-textdim hover:border-accent/40 hover:text-text',
                 ].join(' ')}
               >
                 {wp.label}
-              </button>
+              </motion.button>
             );
           })}
         </nav>
@@ -122,26 +126,40 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
         )}
 
         {/* Status overlay */}
-        {statusMsg && (
-          <div
-            aria-live="polite"
-            className="pointer-events-none absolute left-1/2 top-6 z-10 -translate-x-1/2"
-          >
-            <div className="glass-strong rounded-full px-4 py-2 text-xs font-medium text-accent shadow-[0_0_30px_-8px_rgba(34,211,238,0.6)]">
-              {statusMsg}
-            </div>
-          </div>
-        )}
+        <div aria-live="polite" className="pointer-events-none absolute left-1/2 top-6 z-10 -translate-x-1/2">
+          <AnimatePresence>
+            {statusMsg && (
+              <motion.div
+                variants={popIn}
+                initial="hidden"
+                animate="show"
+                exit="exit"
+                className="glass-strong rounded-full px-4 py-2 text-xs font-medium text-accent shadow-[0_0_30px_-8px_rgba(34,211,238,0.6)]"
+              >
+                {statusMsg}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Stop description */}
-        {currentWaypoint.description && (
-          <div className="pointer-events-none absolute bottom-32 left-4 right-4 z-10 sm:left-6 sm:right-auto sm:max-w-sm">
-            <div className="glass rounded-2xl p-4">
-              <p className="text-sm font-semibold text-text">{currentWaypoint.label}</p>
-              <p className="mt-1 text-xs leading-relaxed text-textdim">{currentWaypoint.description}</p>
-            </div>
-          </div>
-        )}
+        <div className="pointer-events-none absolute bottom-32 left-4 right-4 z-10 sm:left-6 sm:right-auto sm:max-w-sm">
+          <AnimatePresence mode="wait">
+            {currentWaypoint.description && (
+              <motion.div
+                key={currentWaypoint.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.3, ease: EASE_OUT }}
+                className="glass rounded-2xl p-4"
+              >
+                <p className="text-sm font-semibold text-text">{currentWaypoint.label}</p>
+                <p className="mt-1 text-xs leading-relaxed text-textdim">{currentWaypoint.description}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Voice bar */}

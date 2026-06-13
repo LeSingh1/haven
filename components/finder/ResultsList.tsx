@@ -1,6 +1,8 @@
 'use client';
+import { motion } from 'framer-motion';
 import type { Listing } from '@/lib/types';
 import ListingCard from './ListingCard';
+import { staggerContainer, cardIn } from '@/lib/motion';
 
 interface ResultsListProps {
   listings: Listing[];
@@ -15,10 +17,17 @@ export default function ResultsList({ listings, totalCount, loading }: ResultsLi
         role="status"
         aria-live="polite"
         aria-label="Searching for listings"
-        className="flex flex-col gap-4 w-full max-w-xl mx-auto"
+        className="grid grid-cols-1 gap-5 sm:grid-cols-2"
       >
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-48 rounded-xl bg-surface border border-line animate-pulse" />
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="glass overflow-hidden rounded-2xl">
+            <div className="h-40 w-full animate-pulse bg-white/[0.04]" />
+            <div className="space-y-3 p-5">
+              <div className="h-6 w-1/2 animate-pulse rounded bg-white/[0.05]" />
+              <div className="h-4 w-3/4 animate-pulse rounded bg-white/[0.04]" />
+              <div className="h-4 w-2/3 animate-pulse rounded bg-white/[0.04]" />
+            </div>
+          </div>
         ))}
       </div>
     );
@@ -31,30 +40,33 @@ export default function ResultsList({ listings, totalCount, loading }: ResultsLi
 
   return (
     <section aria-label={`Search results — ${totalCount} listing${totalCount !== 1 ? 's' : ''} found`}>
-      <div
-        aria-live="polite"
-        aria-atomic="false"
-        className="sr-only"
-      >
+      <div aria-live="polite" aria-atomic="false" className="sr-only">
         {totalCount} result{totalCount !== 1 ? 's' : ''} found
       </div>
 
-      <p className="text-sm text-textdim mb-4">
-        {totalCount} result{totalCount !== 1 ? 's' : ''} found
+      <p className="mb-4 text-sm text-textdim">
+        <span className="font-semibold text-text">{totalCount}</span> result{totalCount !== 1 ? 's' : ''} found
         {hiddenCount > 0 && ` — showing top ${shown.length}`}
       </p>
 
-      <ul className="flex flex-col gap-4 list-none p-0">
+      {/* key = first id so the grid re-runs its stagger on each new search */}
+      <motion.ul
+        key={shown[0]?.id ?? 'empty'}
+        variants={staggerContainer(0.07)}
+        initial="hidden"
+        animate="show"
+        className="grid list-none grid-cols-1 gap-5 p-0 sm:grid-cols-2"
+      >
         {shown.map((l, i) => (
-          <li key={l.id}>
+          <motion.li key={l.id} variants={cardIn} className="h-full">
             <ListingCard listing={l} rank={i + 1} />
-          </li>
+          </motion.li>
         ))}
-      </ul>
+      </motion.ul>
 
       {hiddenCount > 0 && (
-        <p className="mt-4 text-sm text-textdim text-center">
-          Say "show more" or scroll to see {hiddenCount} additional result{hiddenCount !== 1 ? 's' : ''}.
+        <p className="mt-5 text-center text-sm text-textdim">
+          Say &ldquo;show more&rdquo; or scroll to see {hiddenCount} additional result{hiddenCount !== 1 ? 's' : ''}.
         </p>
       )}
     </section>

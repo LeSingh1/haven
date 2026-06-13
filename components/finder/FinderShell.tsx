@@ -1,5 +1,7 @@
 'use client';
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { EASE_OUT } from '@/lib/motion';
 import type { Listing, VoiceStatus } from '@/lib/types';
 import { search } from '@/lib/api';
 import { useVoiceInput } from '@/lib/useVoiceInput';
@@ -111,19 +113,29 @@ export default function FinderShell() {
   const showSuggestions = !loading && listings.length === 0 && !transcript;
 
   return (
-    <main className="relative mx-auto max-w-3xl px-5 pt-12 pb-32 sm:pt-16">
+    <main className="relative mx-auto max-w-5xl px-5 pt-12 pb-28 sm:pt-16">
       {/* Page heading */}
-      <header className="mb-10 text-center">
+      <motion.header
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: EASE_OUT }}
+        className="mx-auto mb-10 max-w-2xl text-center"
+      >
         <h1 className="text-4xl font-bold tracking-tight text-text sm:text-5xl">
           Find your <span className="accent-shine">home</span>.
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-textdim sm:text-base">
           Speak or type — Haven finds affordable, accessible housing near you.
         </p>
-      </header>
+      </motion.header>
 
       {/* Voice input card */}
-      <section className="glass relative rounded-2xl p-6 sm:p-8">
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: EASE_OUT, delay: 0.08 }}
+        className="glass relative mx-auto max-w-2xl rounded-2xl p-6 sm:p-8"
+      >
         <div className="flex flex-col items-center gap-6">
           <MicButton status={status} onStart={handleStart} onStop={handleStop} supported={supported} />
           <TranscriptBar interim={interim} transcript={transcript} />
@@ -192,20 +204,26 @@ export default function FinderShell() {
             </div>
           </div>
         )}
-      </section>
+      </motion.section>
 
       {/* Error message */}
-      {errorMsg && (
-        <div
-          role="alert"
-          className="mt-6 rounded-xl border border-bad/40 bg-bad/10 px-4 py-3 text-sm text-bad backdrop-blur-md"
-        >
-          {errorMsg}
-        </div>
-      )}
+      <AnimatePresence>
+        {errorMsg && (
+          <motion.div
+            role="alert"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.25, ease: EASE_OUT }}
+            className="mx-auto mt-6 max-w-2xl rounded-xl border border-bad/40 bg-bad/10 px-4 py-3 text-sm text-bad backdrop-blur-md"
+          >
+            {errorMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Spoken summary */}
-      <div className="mt-6">
+      <div className="mx-auto mt-6 max-w-2xl">
         <SpokenSummary summary={summary} version={summaryVersion} />
       </div>
 

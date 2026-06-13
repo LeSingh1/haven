@@ -1,7 +1,9 @@
 'use client';
 import { useState, useCallback, useRef } from 'react';
+import { motion } from 'framer-motion';
 import type { VoiceStatus } from '@/lib/types';
 import { useVoiceInput } from '@/lib/useVoiceInput';
+import { EASE_OUT } from '@/lib/motion';
 import MicButton from '@/components/finder/MicButton';
 
 interface TourVoiceBarProps {
@@ -21,7 +23,7 @@ export default function TourVoiceBar({ onSpeech, externalStatus }: TourVoiceBarP
   };
 
   const stableHandler = useCallback((t: string) => handleTranscriptRef.current(t), []);
-  const { listening, interim, start, stop, supported } = useVoiceInput(stableHandler);
+  const { interim, start, stop, supported } = useVoiceInput(stableHandler);
 
   const displayStatus = externalStatus ?? status;
 
@@ -44,7 +46,12 @@ export default function TourVoiceBar({ onSpeech, externalStatus }: TourVoiceBarP
   }
 
   return (
-    <div className="glass-strong fixed inset-x-3 bottom-3 z-30 rounded-2xl border-white/10 px-4 py-3 shadow-[0_-10px_40px_-10px_rgba(34,211,238,0.25)] sm:inset-x-6 sm:bottom-6 sm:px-6 sm:py-4">
+    <motion.div
+      initial={{ opacity: 0, y: 40 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: EASE_OUT, delay: 0.15 }}
+      className="glass-strong fixed inset-x-3 bottom-3 z-30 rounded-2xl border-white/10 px-4 py-3 shadow-[0_-10px_40px_-10px_rgba(34,211,238,0.25)] sm:inset-x-6 sm:bottom-6 sm:px-6 sm:py-4"
+    >
       {/* Interim transcript */}
       {interim && (
         <div
@@ -91,16 +98,16 @@ export default function TourVoiceBar({ onSpeech, externalStatus }: TourVoiceBarP
       {supported && (
         <p className="mt-3 text-center text-[11px] leading-relaxed text-textdim/80">
           Try:{' '}
-          <span className="text-accent">"take me to the kitchen"</span>,{' '}
-          <span className="text-accent">"turn around"</span>,{' '}
-          <span className="text-accent">"look left"</span>,{' '}
-          <span className="text-accent">"look up"</span>,{' '}
-          <span className="text-accent">"move forward"</span>,{' '}
-          <span className="text-accent">"zoom in"</span>,{' '}
-          <span className="text-accent">"next room"</span>, or{' '}
-          <span className="text-accent">"start over"</span>
+          <span className="text-accent">&ldquo;take me to the kitchen&rdquo;</span>,{' '}
+          <span className="text-accent">&ldquo;turn around&rdquo;</span>,{' '}
+          <span className="text-accent">&ldquo;look left&rdquo;</span>,{' '}
+          <span className="text-accent">&ldquo;look up&rdquo;</span>,{' '}
+          <span className="text-accent">&ldquo;move forward&rdquo;</span>,{' '}
+          <span className="text-accent">&ldquo;zoom in&rdquo;</span>,{' '}
+          <span className="text-accent">&ldquo;next room&rdquo;</span>, or{' '}
+          <span className="text-accent">&ldquo;start over&rdquo;</span>
         </p>
       )}
-    </div>
+    </motion.div>
   );
 }
