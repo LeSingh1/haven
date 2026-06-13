@@ -138,7 +138,7 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
           break;
         }
         case 'move': {
-          const m = cmd.amount ?? 1.2;
+          const m = cmd.amount ?? 0.7;
           const { fwd, right } = planarBasis();
           const to = cam.position.clone();
           if (cmd.direction === 'back') to.addScaledVector(fwd, -m);
@@ -149,7 +149,7 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
           break;
         }
         case 'zoom': {
-          const step = (cmd.amount ?? 1.2) * (cmd.direction === 'out' ? -1 : 1);
+          const step = (cmd.amount ?? 0.7) * (cmd.direction === 'out' ? -1 : 1);
           const fwd = new THREE.Vector3();
           cam.getWorldDirection(fwd).normalize();
           glide(clampPos(cam.position.clone().addScaledVector(fwd, step)), cam.quaternion.clone(), 0.75);
@@ -190,6 +190,7 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
     yawRef.current = tour.spawn?.rotation?.[1] ?? 0;
     pitchRef.current = clampNum(tour.spawn?.rotation?.[0] ?? 0, -80, 80);
     idxRef.current = 0;
+    mount.tabIndex = -1; // focusable so a click guarantees keydown reaches us
 
     // preserveDrawingBuffer lets the canvas be screenshotted/sampled (used for
     // share images and render verification); negligible cost for a single splat.
@@ -228,9 +229,13 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
       cam.position.z = Math.max(min[2], Math.min(max[2], cam.position.z));
     };
 
+    const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright']);
     const onDown = (e: KeyboardEvent) => {
-      keysRef.current[e.key.toLowerCase()] = true;
-      if (e.key.toLowerCase() === 'p') {
+      const key = e.key.toLowerCase();
+      keysRef.current[key] = true;
+      // A movement key cancels any in-progress glide so the free-walk loop runs.
+      if (MOVE_KEYS.has(key)) animRef.current = null;
+      if (key === 'p') {
         const c = camRef.current!;
         const eul = new THREE.Euler().setFromQuaternion(c.quaternion, 'YXZ');
         const deg = (r: number) => Math.round(THREE.MathUtils.radToDeg(r));
@@ -269,6 +274,7 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
 
     const onPointerDown = (e: PointerEvent) => {
       try { dom.setPointerCapture(e.pointerId); } catch { /* non-capturable pointer */ }
+      mount.focus(); // ensure the document is focused so keydown reaches the viewer
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       animRef.current = null; // user grabs control -> cancel any waypoint glide
       if (pointers.size === 1) { dragging = true; dom.style.cursor = 'grabbing'; }
@@ -309,7 +315,7 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
     const onDbl = () => {
       const f = new THREE.Vector3();
       camera.getWorldDirection(f).normalize();
-      const to = camera.position.clone().addScaledVector(f, 1.2);
+      const to = camera.position.clone().addScaledVector(f, 0.9);
       clampVec(to);
       animRef.current = {
         fromP: camera.position.clone(), toP: to,

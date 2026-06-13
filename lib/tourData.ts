@@ -33,7 +33,9 @@ const REAL_ROOM: Scene = {
   credit: 'Scene: Deep Blending “playroom” (Hedman et al.) — real 30k capture, research/non-commercial',
   splatQuat: [1, 0, 0, 0],
   spawn: { position: [0, 0, 4], rotation: [0, 0, 0] },
-  bounds: { min: [-1.1, -0.5, 3.1], max: [1.1, 0.8, 4.3] },
+  // Enough room to roam and feel movement, while still keeping the camera inside
+  // the densely-captured zone (so it stays sharp and never smears off-path).
+  bounds: { min: [-1.4, -0.6, 2.7], max: [1.4, 0.9, 4.4] },
 };
 
 // Waypoints are REAL, hand-tuned vantages of this captured room (verified lit and
