@@ -6,7 +6,6 @@ import MicButton from '@/components/finder/MicButton';
 
 interface TourVoiceBarProps {
   onSpeech: (transcript: string) => void;
-  /** Lifted from parent so parent can show feedback state */
   externalStatus?: VoiceStatus;
 }
 
@@ -45,63 +44,61 @@ export default function TourVoiceBar({ onSpeech, externalStatus }: TourVoiceBarP
   }
 
   return (
-    <aside
-      aria-label="Tour voice controls"
-      className="fixed bottom-0 inset-x-0 bg-surface/95 backdrop-blur border-t border-line px-4 py-4 flex flex-col items-center gap-3 z-50"
-    >
+    <div className="glass-strong fixed inset-x-3 bottom-3 z-30 rounded-2xl border-white/10 px-4 py-3 shadow-[0_-10px_40px_-10px_rgba(34,211,238,0.25)] sm:inset-x-6 sm:bottom-6 sm:px-6 sm:py-4">
       {/* Interim transcript */}
       {interim && (
-        <p aria-live="polite" className="text-sm text-textdim italic">
+        <div
+          aria-live="polite"
+          className="mb-3 inline-block rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs italic text-accent"
+        >
           {interim}…
-        </p>
+        </div>
       )}
 
-      <div className="flex items-center gap-4 w-full max-w-lg">
-        <MicButton
-          status={displayStatus}
-          onStart={handleStart}
-          onStop={handleStop}
-          supported={supported}
-        />
+      <div className="flex items-center gap-4">
+        <MicButton status={displayStatus} onStart={handleStart} onStop={handleStop} supported={supported} />
 
-        {/* Text twin — so a noisy room never kills the demo */}
-        <form
-          onSubmit={handleTextSubmit}
-          className="flex-1 flex gap-2"
-          aria-label="Type a navigation command"
-        >
-          <label htmlFor="tour-text" className="sr-only">Navigate by typing</label>
-          <input
-            id="tour-text"
-            type="text"
-            value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-            placeholder='e.g. "living room" or "next"'
-            className={[
-              'flex-1 bg-surface2 border border-line rounded-lg px-3 py-2 text-sm text-text',
-              'placeholder-textdim focus:border-accent focus:outline-none transition-colors',
-              'min-h-[48px]',
-            ].join(' ')}
-            disabled={displayStatus === 'thinking'}
-          />
-          <button
-            type="submit"
-            disabled={displayStatus === 'thinking' || !textInput.trim()}
-            className={[
-              'px-4 py-2 rounded-lg bg-accent text-bg text-sm font-semibold',
-              'hover:bg-accent/90 disabled:opacity-50 transition-colors min-h-[48px]',
-            ].join(' ')}
-          >
-            Go
-          </button>
+        {/* Text twin */}
+        <form onSubmit={handleTextSubmit} className="flex flex-1 flex-col gap-1.5">
+          <label htmlFor="tour-text" className="text-[10px] font-medium uppercase tracking-wider text-textdim">
+            Navigate by typing
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="tour-text"
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder='e.g. "living room" or "next"'
+              className={[
+                'flex-1 min-h-[48px] rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-text',
+                'placeholder:text-textdim/70 transition-colors',
+                'focus:border-accent focus:bg-white/[0.05] focus:outline-none',
+              ].join(' ')}
+              disabled={displayStatus === 'thinking'}
+            />
+            <button
+              type="submit"
+              disabled={displayStatus === 'thinking' || !textInput.trim()}
+              className="btn-neon min-h-[48px] rounded-xl px-5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Go
+            </button>
+          </div>
         </form>
       </div>
 
       {supported && (
-        <p className="text-xs text-textdim">
-          Say: "entrance", "living room", "kitchen", "bedroom", "next", "back", or "reset"
+        <p className="mt-3 text-center text-[11px] text-textdim/80">
+          Say: <span className="text-accent">"entrance"</span>,{' '}
+          <span className="text-accent">"living room"</span>,{' '}
+          <span className="text-accent">"kitchen"</span>,{' '}
+          <span className="text-accent">"bedroom"</span>,{' '}
+          <span className="text-accent">"next"</span>,{' '}
+          <span className="text-accent">"back"</span>, or{' '}
+          <span className="text-accent">"reset"</span>
         </p>
       )}
-    </aside>
+    </div>
   );
 }

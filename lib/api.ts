@@ -1,45 +1,70 @@
 'use client';
 import type { SearchQuery, SearchResponse, ApiError, NavParseResponse } from './types';
 import { mockListings } from './mockListings';
+import { parseHousingQuery, buildConfirmation } from './nlp';
 
 // Flip to false when Shaurya's backend routes are live — one-line swap.
 const MOCK = true;
 
-// Small artificial delay to simulate network latency in mock mode.
 const mockDelay = (ms = 600) => new Promise<void>((r) => setTimeout(r, ms));
 
-export async function search(query: SearchQuery): Promise<SearchResponse | ApiError> {
+export async function search(raw: SearchQuery): Promise<SearchResponse | ApiError> {
   if (MOCK) {
     await mockDelay();
-    // Simple mock filter: rank by matchScore descending.
+
+    // Parse natural language → structured constraints
+    const q = parseHousingQuery(raw.transcript);
+
     const filtered = mockListings
       .filter((l) => {
-        if (query.maxRent && l.rent > query.maxRent) return false;
-        if (query.minBeds && l.beds < query.minBeds) return false;
+        if (q.maxRent && l.rent > q.maxRent) return false;
+        if (q.minBeds !== undefined && l.beds < q.minBeds) return false;
+        if (q.city && !l.city.toLowerCase().includes(q.city.toLowerCase())) return false;
+        if (q.accessibility?.length) {
+          const hasAll = q.accessibility.every((f) => l.accessibility.includes(f));
+          if (!hasAll) return false;
+        }
+        if (q.programs?.length) {
+          const hasAny = q.programs.some((p) => l.programs.includes(p));
+          if (!hasAny) return false;
+        }
         return true;
       })
       .sort((a, b) => b.matchScore - a.matchScore);
 
-    const top = filtered.slice(0, 3);
-    const spokenSummary =
-      filtered.length === 0
-        ? "I couldn't find any listings matching your request. Try adjusting your budget or bedroom count."
-        : `I found ${filtered.length} affordable home${filtered.length !== 1 ? 's' : ''} near Milpitas. ` +
-          `Top match: ${top[0].address} at $${top[0].rent.toLocaleString()} per month, ` +
-          `${top[0].beds} bedroom${top[0].beds !== 1 ? 's' : ''}. ` +
-          (filtered.length > 1
-            ? `Also showing ${top[1].address} at $${top[1].rent.toLocaleString()}` +
-              (filtered.length > 2 ? ` and ${filtered.length - 2} more result${filtered.length - 2 !== 1 ? 's' : ''}.` : '.')
-            : '');
+    if (filtered.length === 0) {
+      const fallback =
+        "I didn't find any listings matching that. Try a higher budget, fewer requirements, or say something like "
+        + '"2 bedroom under 1500 in Milpitas".';
+      return { ok: true, listings: [], spokenSummary: fallback, totalCount: 0 };
+    }
 
-    return { ok: true, listings: filtered, spokenSummary, totalCount: filtered.length };
+    const top3 = filtered.slice(0, 3);
+
+    // Build a natural spoken summary capped to top 3 results
+    const confirmation = buildConfirmation(q);
+    const intro = `${confirmation} I found ${filtered.length} result${filtered.length !== 1 ? 's' : ''}. `;
+    const top = `Top match: ${top3[0].address} at $${top3[0].rent.toLocaleString()} per month, ${top3[0].beds === 0 ? 'studio' : `${top3[0].beds} bedroom`}. `;
+    const second = top3[1]
+      ? `Also: ${top3[1].address} at $${top3[1].rent.toLocaleString()}. `
+      : '';
+    const more = filtered.length > 2
+      ? `And ${filtered.length - 2} more result${filtered.length - 2 !== 1 ? 's' : ''} below.`
+      : '';
+
+    return {
+      ok: true,
+      listings: filtered,
+      spokenSummary: (intro + top + second + more).trim(),
+      totalCount: filtered.length,
+    };
   }
 
   try {
     const res = await fetch('/api/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(query),
+      body: JSON.stringify(raw),
     });
     if (!res.ok) {
       const err = await res.json();
@@ -65,28 +90,31 @@ export async function parseNav(
 ): Promise<NavParseResponse> {
   if (MOCK) {
     await mockDelay(300);
-    // Naive mock: match transcript to waypoint label by keyword.
     const lower = transcript.toLowerCase();
-    const match = waypoints.find((w) => lower.includes(w.label.toLowerCase().split(' ')[0]));
+
+    // Try each waypoint — match any word from its label
+    const match = waypoints.find((w) =>
+      w.label.toLowerCase().split(/\s+/).some((word) => lower.includes(word))
+    );
     if (match) {
-      return {
-        ok: true,
-        command: { type: 'goto', waypointId: match.id, speech: `Moving to ${match.label}.` },
-      };
+      return { ok: true, command: { type: 'goto', waypointId: match.id, speech: `Moving to ${match.label}.` } };
     }
-    if (lower.includes('reset') || lower.includes('start') || lower.includes('beginning')) {
+    if (/\b(?:reset|start|beginning|entrance|front)\b/.test(lower)) {
       return { ok: true, command: { type: 'reset', speech: 'Returning to the entrance.' } };
     }
-    if (lower.includes('next')) {
+    if (/\b(?:next|forward|continue|ahead)\b/.test(lower)) {
       return { ok: true, command: { type: 'next', speech: 'Moving to the next stop.' } };
     }
-    if (lower.includes('back') || lower.includes('previous') || lower.includes('prev')) {
+    if (/\b(?:back|previous|prev|before|go back)\b/.test(lower)) {
       return { ok: true, command: { type: 'prev', speech: 'Going back.' } };
     }
+
+    // Build the available waypoints hint from actual waypoints
+    const labels = waypoints.map((w) => `"${w.label.toLowerCase()}"`).join(', ');
     return {
       ok: false,
       command: { type: 'reset', speech: '' },
-      spokenFallback: `I didn't catch that. Try saying "living room", "kitchen", "bedroom", or "next".`,
+      spokenFallback: `I didn't catch that. Try saying ${labels}, "next", or "back".`,
     };
   }
 

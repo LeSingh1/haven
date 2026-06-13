@@ -4,7 +4,7 @@ import type { Listing, AccessibilityFeature } from '@/lib/types';
 
 interface ListingCardProps {
   listing: Listing;
-  rank: number; // 1-based position in results
+  rank: number;
 }
 
 const accessibilityLabels: Record<AccessibilityFeature, string> = {
@@ -17,21 +17,45 @@ const accessibilityLabels: Record<AccessibilityFeature, string> = {
   'braille-signage': 'Braille',
 };
 
-function ScoreChip({ score }: { score: number }) {
-  const color =
-    score >= 85 ? 'text-good bg-good/10 border-good/30' :
-    score >= 70 ? 'text-warn bg-warn/10 border-warn/30' :
-                  'text-textdim bg-surface2 border-line';
+/** Circular score ring: gradient arc, color tier by score. */
+function ScoreRing({ score }: { score: number }) {
+  const tier =
+    score >= 85 ? { stroke: '#4ADE80', text: 'text-good', label: 'Strong match' } :
+    score >= 70 ? { stroke: '#FBBF24', text: 'text-warn', label: 'Good match' } :
+                  { stroke: '#A1A1AA', text: 'text-textdim', label: 'Partial match' };
+
+  const r = 22;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - Math.max(0, Math.min(100, score)) / 100);
+
   return (
-    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${color}`}>
-      {score}% match
-    </span>
+    <div
+      className={`relative grid h-14 w-14 shrink-0 place-items-center ring-shimmer ${tier.text}`}
+      aria-label={`${score}% match — ${tier.label}`}
+      title={`${score}% match`}
+    >
+      <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden>
+        <circle cx="28" cy="28" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="4" />
+        <circle
+          cx="28" cy="28" r={r}
+          fill="none"
+          stroke={tier.stroke}
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          transform="rotate(-90 28 28)"
+          style={{ filter: `drop-shadow(0 0 6px ${tier.stroke})` }}
+        />
+      </svg>
+      <span className="absolute text-[11px] font-bold tabular-nums">{score}</span>
+    </div>
   );
 }
 
-function Badge({ label }: { label: string }) {
+function PillGlow({ label }: { label: string }) {
   return (
-    <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
+    <span className="pill-glow inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium">
       {label}
     </span>
   );
@@ -39,7 +63,7 @@ function Badge({ label }: { label: string }) {
 
 function ProgramBadge({ label }: { label: string }) {
   return (
-    <span className="text-xs px-2 py-0.5 rounded-full bg-surface2 text-textdim border border-line">
+    <span className="inline-flex items-center rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-medium text-textdim">
       {label}
     </span>
   );
@@ -54,47 +78,56 @@ export default function ListingCard({ listing, rank }: ListingCardProps) {
 
   return (
     <article
-      aria-label={`Listing ${rank}: ${address}`}
       className={[
-        'rounded-xl border p-5 flex flex-col gap-3 transition-colors',
-        'bg-surface border-line hover:border-accent/40',
-        !available ? 'opacity-60' : '',
-      ].join(' ')}
+        'glass glass-hover relative rounded-2xl p-5 sm:p-6',
+        !available && 'opacity-60',
+      ].filter(Boolean).join(' ')}
     >
-      {/* Header row */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs text-textdim mb-0.5">#{rank}</p>
-          <h3 className="text-text font-semibold leading-snug">{address}</h3>
-          <p className="text-textdim text-sm">{city}, {state}</p>
+      {/* Header */}
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-textdim">
+              #{rank}
+            </span>
+            {!available && (
+              <span className="rounded-md bg-bad/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-bad">
+                Unavailable
+              </span>
+            )}
+          </div>
+          <h3 className="truncate text-lg font-semibold text-text">{address}</h3>
+          <p className="text-sm text-textdim">{city}, {state}</p>
         </div>
-        <ScoreChip score={matchScore} />
+        <ScoreRing score={matchScore} />
       </div>
 
-      {/* Stats */}
-      <div className="flex items-center gap-4 text-sm text-textdim">
-        <span className="text-text font-bold text-lg">${rent.toLocaleString()}<span className="text-xs font-normal text-textdim">/mo</span></span>
-        <span>{beds} bd</span>
-        <span>{baths} ba</span>
-        <span>{sqft.toLocaleString()} ft²</span>
-        {!available && <span className="text-bad text-xs font-medium">Unavailable</span>}
+      {/* Stats row */}
+      <div className="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+        <span className="text-xl font-bold text-text">
+          ${rent.toLocaleString()}
+          <span className="ml-1 text-xs font-normal text-textdim">/mo</span>
+        </span>
+        <span className="text-textdim">{beds} bd</span>
+        <span className="text-textdim">{baths} ba</span>
+        <span className="text-textdim">{sqft.toLocaleString()} ft²</span>
       </div>
 
       {/* Description */}
-      <p className="text-sm text-textdim leading-relaxed">{description}</p>
+      <p className="mt-3 text-sm leading-relaxed text-textdim">{description}</p>
 
-      {/* Accessibility badges */}
+      {/* Accessibility */}
       {accessibility.length > 0 && (
-        <div className="flex flex-wrap gap-1.5" aria-label="Accessibility features">
+        <div className="mt-4 flex flex-wrap gap-1.5">
           {accessibility.map((f) => (
-            <Badge key={f} label={accessibilityLabels[f]} />
+            <PillGlow key={f} label={accessibilityLabels[f]} />
           ))}
         </div>
       )}
 
-      {/* Program badges */}
+      {/* Programs */}
       {programs.length > 0 && (
-        <div className="flex flex-wrap gap-1.5" aria-label="Housing programs">
+        <div className="mt-2 flex flex-wrap gap-1.5">
           {programs.map((p) => (
             <ProgramBadge key={p} label={p} />
           ))}
@@ -105,16 +138,12 @@ export default function ListingCard({ listing, rank }: ListingCardProps) {
       {hasTour && tourId && (
         <Link
           href={`/tour/${tourId}`}
-          className={[
-            'mt-1 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold',
-            'bg-accent text-bg hover:bg-accent/90 transition-colors',
-            'min-h-[48px] justify-center',
-          ].join(' ')}
+          className="btn-neon mt-5 inline-flex min-h-[44px] items-center gap-2 rounded-xl px-4 text-sm font-semibold"
           aria-label={`Walk through ${address} in 3D`}
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            <polyline points="9 22 9 12 15 12 15 22" />
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M3 21h18M5 21V8l7-5 7 5v13" />
+            <path d="M9 21v-6h6v6" />
           </svg>
           Walk this home
         </Link>

@@ -12,7 +12,7 @@
   --color-warn: #FBBF24;
   --color-bad: #F43F5E;
 
-  --font-sans: var(--font-geist-sans);
+  --font-sans: "Atkinson Hyperlegible", var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
@@ -21,36 +21,167 @@
   --foreground: #F4F4F5;
 }
 
-body {
+html, body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans, Arial, Helvetica, sans-serif);
+  font-family: "Atkinson Hyperlegible", var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Page-level radial cyan glow (top center, ~8% opacity) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(34, 211, 238, 0.14), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(34, 211, 238, 0.05), transparent 70%);
+}
+
+/* Subtle grid overlay (gated by reduced motion below isn't needed — it's static) */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 80%);
+}
+
+/* Lift all app content above the decorative layers */
+#__next, main, body > div { position: relative; z-index: 1; }
 
 /* Visible focus ring for keyboard navigation — WCAG 2.4.7 */
 :focus-visible {
   outline: 2px solid #22D3EE;
-  outline-offset: 3px;
-  border-radius: 4px;
+  outline-offset: 2px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.18);
 }
+
+/* Selection */
+::selection { background: rgba(34, 211, 238, 0.35); color: #F4F4F5; }
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #0A0A0B; }
+::-webkit-scrollbar-thumb { background: #26262A; border-radius: 8px; border: 2px solid #0A0A0B; }
+::-webkit-scrollbar-thumb:hover { background: rgba(34, 211, 238, 0.4); }
+
+/* === Glass utilities (used via @apply equivalents in className) === */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.glass-strong {
+  background: rgba(20, 20, 22, 0.65);
+  backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.glass-hover {
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease, background .2s ease;
+}
+.glass-hover:hover {
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 0 1px rgba(34,211,238,0.25), 0 10px 40px -10px rgba(34,211,238,0.25);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+/* Neon button */
+.btn-neon {
+  background: linear-gradient(180deg, rgba(34,211,238,0.95), rgba(34,211,238,0.75));
+  color: #04161A;
+  box-shadow:
+    0 0 0 1px rgba(34,211,238,0.6) inset,
+    0 8px 30px -8px rgba(34,211,238,0.55),
+    0 0 60px -10px rgba(34,211,238,0.4);
+  transition: transform .15s ease, box-shadow .2s ease, filter .2s ease;
+}
+.btn-neon:hover { filter: brightness(1.08); box-shadow: 0 0 0 1px rgba(34,211,238,0.8) inset, 0 10px 36px -6px rgba(34,211,238,0.7), 0 0 80px -10px rgba(34,211,238,0.55); }
+.btn-neon:active { transform: translateY(1px); }
+
+.btn-ghost {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #F4F4F5;
+  transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
+}
+.btn-ghost:hover {
+  border-color: rgba(34,211,238,0.5);
+  background: rgba(34,211,238,0.06);
+  box-shadow: 0 0 24px -6px rgba(34,211,238,0.35);
+}
+
+/* Glow pill (accessibility badge) */
+.pill-glow {
+  background: rgba(34, 211, 238, 0.08);
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  color: #A5F3FC;
+  box-shadow: 0 0 18px -6px rgba(34, 211, 238, 0.45) inset;
+}
+
+/* Animated headline gradient on accent word */
+.accent-shine {
+  background: linear-gradient(90deg, #22D3EE 0%, #67E8F9 35%, #22D3EE 70%, #06B6D4 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shine 6s ease-in-out infinite;
+}
+
+@keyframes shine {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* Floating particles (landing) */
+@keyframes drift {
+  0%   { transform: translateY(0) translateX(0); opacity: .35; }
+  50%  { transform: translateY(-24px) translateX(8px); opacity: .8; }
+  100% { transform: translateY(0) translateX(0); opacity: .35; }
+}
+.particle {
+  position: absolute;
+  width: 4px; height: 4px;
+  border-radius: 9999px;
+  background: #22D3EE;
+  box-shadow: 0 0 10px 2px rgba(34,211,238,0.6);
+  animation: drift 7s ease-in-out infinite;
+}
+
+/* Mic pulse — multi-ring cyan ripple + inner glow */
+@keyframes mic-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(34,211,238,0.55), 0 0 0 0 rgba(34,211,238,0.35), inset 0 0 24px rgba(34,211,238,0.45); }
+  70%  { box-shadow: 0 0 0 14px rgba(34,211,238,0), 0 0 0 28px rgba(34,211,238,0), inset 0 0 36px rgba(34,211,238,0.55); }
+  100% { box-shadow: 0 0 0 0 rgba(34,211,238,0), 0 0 0 0 rgba(34,211,238,0), inset 0 0 24px rgba(34,211,238,0.45); }
+}
+.mic-pulse { animation: mic-pulse 1.6s ease-in-out infinite; }
+
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.spin-slow { animation: spin-slow 1.4s linear infinite; }
+
+/* Score ring rotation idle shimmer */
+@keyframes ring-shimmer {
+  0%, 100% { filter: drop-shadow(0 0 4px currentColor); }
+  50%      { filter: drop-shadow(0 0 10px currentColor); }
+}
+.ring-shimmer { animation: ring-shimmer 3.2s ease-in-out infinite; }
 
 /* Respect prefers-reduced-motion — WCAG 2.3.3 */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-/* Pulse animation for mic listening state */
-@keyframes mic-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.4); }
-  50%       { box-shadow: 0 0 0 12px rgba(34, 211, 238, 0); }
-}
-
-.mic-pulse {
-  animation: mic-pulse 1.4s ease-in-out infinite;
+  body::before, body::after { display: none; }
+  .particle { display: none; }
 }

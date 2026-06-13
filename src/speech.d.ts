@@ -1,5 +1,3 @@
-// TypeScript declarations for Web Speech API — not in DOM lib by default
-interface Window {
-  SpeechRecognition: typeof SpeechRecognition;
-  webkitSpeechRecognition: typeof SpeechRecognition;
-}
+// Re-export from root types — keeps the src/ folder aligned with the spec.
+// The actual declarations live in /types/speech.d.ts which tsconfig picks up.
+export {};
