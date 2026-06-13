@@ -204,7 +204,9 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
     let splat: SplatMesh | null = null;
     try {
       splat = new SplatMesh({ url: splatUrl });
-      splat.quaternion.set(1, 0, 0, 0); // Spark loads Y-down; 180° flip about X
+      // Orientation depends on the capture pipeline: 3DGS/COLMAP scenes are Y-down
+      // (180° X flip [1,0,0,0]); Marble/Forge .spz are Y-up (identity [0,0,0,1]).
+      splat.quaternion.set(...(tour.splatQuat ?? [1, 0, 0, 0]));
       scene.add(splat);
       // Spark resolves `initialized` once the splat is decoded and ready to draw.
       // Until then the scene is empty (black) — drive the loading overlay off this.

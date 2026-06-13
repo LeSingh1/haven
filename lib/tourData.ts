@@ -13,29 +13,41 @@
 import type { TourMeta, Waypoint } from './types';
 import { mockListings } from './mockListings';
 
-// The walkable interior. Hosted LOCALLY (public/splats/room.splat) so it serves
-// off the same origin — instant on localhost, edge-CDN on Vercel — instead of
-// streaming the 34MB file from Hugging Face (~45s on venue wifi, plus a CORS/HF
-// uptime dependency at demo time). Source: Mip-NeRF 360 "room" scene (1.13M
-// gaussians) from dylanebert/3dgs. A loading overlay (SplatTour) covers the
-// few-second decode so the viewer never shows a bare black screen.
-const ROOM_SPLAT = '/splats/room.splat';
-const MIPNERF = 'Scene: Mip-NeRF 360 (Google) — research/non-commercial, via dylanebert/3dgs';
+// Walkable interior — a REAL photographed capture (NOT an AI-generated room), so
+// it reads like an actual home. Hosted LOCALLY (public/splats/room.splat) so it
+// serves off the same origin (instant on localhost, edge-CDN on Vercel). We keep
+// the walker near the spawn with TIGHT `bounds` so the view stays sharp and never
+// smears off the captured path. A loading overlay (SplatTour) covers the decode.
+interface Scene {
+  url: string;
+  credit: string;
+  splatQuat: [number, number, number, number];
+  spawn: { position: [number, number, number]; rotation: [number, number, number] };
+  bounds: { min: [number, number, number]; max: [number, number, number] };
+}
 
-// Accessibility-themed waypoints. The scene is a single captured room, so we
-// "tour" it by standing in the well-captured CENTRAL column (x≈0, z 2.8–4) and
-// turning to face different areas — moving far sideways (old x=±3) flew the
-// camera outside the splat's captured volume and rendered black. Voice
+// Mip-NeRF 360 "room" — a real captured living space (3DGS/COLMAP → Y-down, hence
+// the 180° X flip). Tight bounds pin the camera to the densely-captured zone.
+const REAL_ROOM: Scene = {
+  url: '/splats/playroom.ply',
+  credit: 'Scene: Deep Blending “playroom” (Hedman et al.) — real 30k capture, research/non-commercial',
+  splatQuat: [1, 0, 0, 0],
+  spawn: { position: [0, 0, 4], rotation: [0, 0, 0] },
+  bounds: { min: [-1.3, -0.6, 2.3], max: [1.3, 0.9, 4.3] },
+};
+
+// Real-capture waypoints in the room's frame: stand near the entry and TURN to
+// face each area — staying in the dense zone keeps every view sharp. Voice
 // goto/next/prev/reset and free walking (arrows/WASD) all work on top of these.
 function waypoints(): Waypoint[] {
   return [
     { id: 'wp-entrance', label: 'Entrance', position: [0, 0, 4], rotation: [0, 0, 0],
       description: 'Step-free entry with a clear, wide path straight inside.' },
-    { id: 'wp-living', label: 'Living Room', position: [0, 0, 2.8], rotation: [0, 0, 0],
+    { id: 'wp-living', label: 'Living Room', position: [0, 0, 3], rotation: [0, 0, 0],
       description: 'Open living space with room for a wheelchair turning radius.' },
-    { id: 'wp-kitchen', label: 'Kitchen', position: [0, 0, 3.2], rotation: [0, -38, 0],
+    { id: 'wp-kitchen', label: 'Kitchen', position: [0, 0, 3.3], rotation: [0, -32, 0],
       description: 'Turn right toward the accessible kitchen with reachable counters.' },
-    { id: 'wp-bedroom', label: 'Bedroom', position: [0, 0, 3.2], rotation: [0, 40, 0],
+    { id: 'wp-bedroom', label: 'Bedroom', position: [0, 0, 3.3], rotation: [0, 32, 0],
       description: 'Turn left toward the quiet bedroom with an accessible bath nearby.' },
   ];
 }
@@ -43,21 +55,17 @@ function waypoints(): Waypoint[] {
 // One tour per listing, keyed by the listing id (used as the tourId).
 const BY_ID: Record<string, TourMeta> = {};
 mockListings.forEach((l) => {
-  // Every listing uses the locally-hosted "room" scene: it renders cleanly at the
-  // generic spawn [0,0,4] and loads fast. Other captures need a hand-tuned spawn
-  // pose to frame correctly (their coordinate frames differ); room guarantees a
-  // clean render so no tour is ever a black screen.
+  const s = REAL_ROOM;
   BY_ID[l.id] = {
     id: l.id,
     listingId: l.id,
     address: `${l.address}, ${l.city}`,
     waypoints: waypoints(),
-    splatUrl: ROOM_SPLAT,
-    spawn: { position: [0, 0, 4], rotation: [0, 0, 0] },
-    // Keep the walker inside the well-captured volume so they can't wander into
-    // the black void around the edges of the capture.
-    bounds: { min: [-2.5, -1, -1], max: [2.5, 1.5, 5] },
-    credit: MIPNERF,
+    splatUrl: s.url,
+    splatQuat: s.splatQuat,
+    spawn: s.spawn,
+    bounds: s.bounds,
+    credit: s.credit,
   };
 });
 

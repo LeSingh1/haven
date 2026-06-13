@@ -70,6 +70,11 @@ export interface TourMeta {
   splatUrl?: string;
   /** Initial camera pose. */
   spawn?: { position: [number, number, number]; rotation?: [number, number, number] };
+  /** Splat orientation quaternion [x,y,z,w]. Different capture pipelines use
+   *  different up-axes: 3DGS/COLMAP scenes are Y-down (need a 180° X flip,
+   *  [1,0,0,0]); Marble/Forge .spz are Y-up (identity, [0,0,0,1]). Defaults to
+   *  the 180° X flip. */
+  splatQuat?: [number, number, number, number];
   /** Movement clamp so the user can't fly out of the scene. */
   bounds?: { min: [number, number, number]; max: [number, number, number] };
   /** Attribution line for the splat source (shown in the tour UI). */
