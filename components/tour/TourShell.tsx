@@ -99,7 +99,13 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
       {/* 3D viewport */}
       <div className="relative flex-1 overflow-hidden">
         {SplatTour ? (
-          <SplatTour ref={splatRef} tour={tour} />
+          <SplatTour
+            ref={splatRef}
+            tour={tour}
+            onReady={(h: SplatTourHandle) => {
+              splatRef.current = h;
+            }}
+          />
         ) : (
           <TourPlaceholder tour={tour} currentWaypoint={currentWaypoint.id} />
         )}

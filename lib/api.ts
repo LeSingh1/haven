@@ -3,8 +3,8 @@ import type { SearchQuery, SearchResponse, ApiError, NavParseResponse } from './
 import { mockListings } from './mockListings';
 import { parseHousingQuery, buildConfirmation } from './nlp';
 
-// Flip to false when Shaurya's backend routes are live — one-line swap.
-const MOCK = true;
+// Backend routes are live (Shaurya). Set true to force the offline mock path.
+const MOCK = false;
 
 const mockDelay = (ms = 600) => new Promise<void>((r) => setTimeout(r, ms));
 

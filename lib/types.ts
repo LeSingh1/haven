@@ -64,6 +64,16 @@ export interface TourMeta {
   listingId: string;
   address: string;
   waypoints: Waypoint[];
+  // ── splat fields (added by Shaurya for the 3D tour; optional so existing
+  //    frontend/mock code is unaffected) ──
+  /** URL of the Gaussian splat (.ply/.spz/.splat) — local /splats/* or a remote CDN. */
+  splatUrl?: string;
+  /** Initial camera pose. */
+  spawn?: { position: [number, number, number]; rotation?: [number, number, number] };
+  /** Movement clamp so the user can't fly out of the scene. */
+  bounds?: { min: [number, number, number]; max: [number, number, number] };
+  /** Attribution line for the splat source (shown in the tour UI). */
+  credit?: string;
 }
 
 export type NavCommandType = 'goto' | 'look' | 'reset' | 'next' | 'prev';

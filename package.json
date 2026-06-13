@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "verify:claude": "npx --yes tsx scripts/verify-claude.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
