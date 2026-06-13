@@ -33,22 +33,25 @@ const REAL_ROOM: Scene = {
   credit: 'Scene: Deep Blending “playroom” (Hedman et al.) — real 30k capture, research/non-commercial',
   splatQuat: [1, 0, 0, 0],
   spawn: { position: [0, 0, 4], rotation: [0, 0, 0] },
-  bounds: { min: [-1.3, -0.6, 2.3], max: [1.3, 0.9, 4.3] },
+  bounds: { min: [-1.1, -0.5, 3.1], max: [1.1, 0.8, 4.3] },
 };
 
-// Real-capture waypoints in the room's frame: stand near the entry and TURN to
-// face each area — staying in the dense zone keeps every view sharp. Voice
-// goto/next/prev/reset and free walking (arrows/WASD) all work on top of these.
+// Waypoints are REAL, hand-tuned vantages of this captured room (verified lit and
+// sharp). Each frames a distinct feature, so clicking/saying one actually FLIES
+// you to that spot — not just a small pan. (The scene is one real room, so the
+// labels name what's actually there rather than fictional kitchens/bedrooms.)
+// rotation = [pitch, yaw, roll] in degrees. Voice goto/next/prev/reset + turn/
+// tilt/move/zoom and free walking all compose on top of these.
 function waypoints(): Waypoint[] {
   return [
     { id: 'wp-entrance', label: 'Entrance', position: [0, 0, 4], rotation: [0, 0, 0],
-      description: 'Step-free entry with a clear, wide path straight inside.' },
-    { id: 'wp-living', label: 'Living Room', position: [0, 0, 3], rotation: [0, 0, 0],
-      description: 'Open living space with room for a wheelchair turning radius.' },
-    { id: 'wp-kitchen', label: 'Kitchen', position: [0, 0, 3.3], rotation: [0, -32, 0],
-      description: 'Turn right toward the accessible kitchen with reachable counters.' },
-    { id: 'wp-bedroom', label: 'Bedroom', position: [0, 0, 3.3], rotation: [0, 32, 0],
-      description: 'Turn left toward the quiet bedroom with an accessible bath nearby.' },
+      description: 'Step inside — a bright, open, step-free room with a clear path.' },
+    { id: 'wp-bookshelves', label: 'Bookshelves', position: [-0.2, 0, 3.7], rotation: [0, 33, 0],
+      description: 'Built-in storage and full bookshelves along the left wall.' },
+    { id: 'wp-desk', label: 'Study Desk', position: [0.05, 0, 3.5], rotation: [-4, -8, 0],
+      description: 'A quiet desk and workspace beneath the window.' },
+    { id: 'wp-play', label: 'Play Corner', position: [0.35, 0, 3.7], rotation: [-6, -26, 0],
+      description: 'An open corner with low, reachable shelves and floor space.' },
   ];
 }
 

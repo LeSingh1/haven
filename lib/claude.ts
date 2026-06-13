@@ -177,11 +177,10 @@ export function keywordNav(
 
   // 7. Go to a named room (label or common synonym).
   const SYN: Record<string, RegExp> = {
-    entrance: /\b(entrance|entry|entryway|foyer|front door|doorway|start)\b/,
-    living: /\b(living|lounge|family room|great room|sitting)\b/,
-    kitchen: /\b(kitchen|cook|counters?|stove)\b/,
-    bedroom: /\b(bedroom|bed room|master|sleep)\b/,
-    bathroom: /\b(bathroom|bath|restroom|washroom)\b/,
+    entrance: /\b(entrance|entry|entryway|foyer|front door|doorway|overview|start|beginning)\b/,
+    bookshel: /\b(bookshel\w*|book\s*shel\w*|books?|shelves|shelf|storage|library)\b/,
+    desk: /\b(desk|study|office|work\s*space|workspace|computer|window)\b/,
+    play: /\b(play\s*corner|play\s*area|play|toys?|mat|kids?|reading|nook)\b/,
   };
   for (const w of waypoints) {
     const label = w.label.toLowerCase();
