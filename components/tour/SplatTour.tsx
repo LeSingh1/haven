@@ -245,6 +245,85 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
 
+    // ── Street View-style direct controls: drag to look, wheel/pinch to zoom,
+    //    double-click to glide forward. Composes with voice + arrow-key walking. ──
+    const dom = renderer.domElement;
+    dom.style.touchAction = 'none'; // we own touch gestures (no page scroll/zoom)
+    dom.style.cursor = 'grab';
+    const LOOK = 0.2; // degrees of view rotation per pixel dragged
+    const pointers = new Map<number, { x: number; y: number }>();
+    let dragging = false;
+    let pinchPrev = 0;
+
+    const clampVec = (v: THREE.Vector3) => {
+      v.x = clampNum(v.x, bounds.min[0], bounds.max[0]);
+      v.y = clampNum(v.y, bounds.min[1], bounds.max[1]);
+      v.z = clampNum(v.z, bounds.min[2], bounds.max[2]);
+    };
+    const dolly = (dist: number) => {
+      const f = new THREE.Vector3();
+      camera.getWorldDirection(f).normalize();
+      camera.position.addScaledVector(f, dist);
+      clampVec(camera.position);
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      try { dom.setPointerCapture(e.pointerId); } catch { /* non-capturable pointer */ }
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      animRef.current = null; // user grabs control -> cancel any waypoint glide
+      if (pointers.size === 1) { dragging = true; dom.style.cursor = 'grabbing'; }
+      else if (pointers.size === 2) {
+        dragging = false;
+        const p = [...pointers.values()];
+        pinchPrev = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      }
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      const prev = pointers.get(e.pointerId);
+      if (!prev) return;
+      const cur = { x: e.clientX, y: e.clientY };
+      pointers.set(e.pointerId, cur);
+      if (pointers.size >= 2) {
+        const p = [...pointers.values()];
+        const dist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+        dolly((dist - pinchPrev) * 0.01); // pinch out -> move forward
+        pinchPrev = dist;
+        return;
+      }
+      if (!dragging) return;
+      // "grab the world" like Street View: drag right -> view pans left.
+      yawRef.current += (cur.x - prev.x) * LOOK;
+      pitchRef.current = clampNum(pitchRef.current + (cur.y - prev.y) * LOOK, -80, 80);
+      camera.quaternion.copy(quatFromYawPitch(yawRef.current, pitchRef.current));
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinchPrev = 0;
+      if (pointers.size === 0) { dragging = false; dom.style.cursor = 'grab'; }
+    };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      animRef.current = null;
+      dolly(-e.deltaY * 0.0025); // scroll up -> zoom in (move toward view)
+    };
+    const onDbl = () => {
+      const f = new THREE.Vector3();
+      camera.getWorldDirection(f).normalize();
+      const to = camera.position.clone().addScaledVector(f, 1.2);
+      clampVec(to);
+      animRef.current = {
+        fromP: camera.position.clone(), toP: to,
+        fromQ: camera.quaternion.clone(), toQ: camera.quaternion.clone(),
+        t: 0, dur: 0.7,
+      };
+    };
+    dom.addEventListener('pointerdown', onPointerDown);
+    dom.addEventListener('pointermove', onPointerMove);
+    dom.addEventListener('pointerup', onPointerUp);
+    dom.addEventListener('pointercancel', onPointerUp);
+    dom.addEventListener('wheel', onWheel, { passive: false });
+    dom.addEventListener('dblclick', onDbl);
+
     const clock = new THREE.Clock();
     const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
     const up = new THREE.Vector3(0, 1, 0);
@@ -290,6 +369,12 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);
       window.removeEventListener('resize', onResize);
+      dom.removeEventListener('pointerdown', onPointerDown);
+      dom.removeEventListener('pointermove', onPointerMove);
+      dom.removeEventListener('pointerup', onPointerUp);
+      dom.removeEventListener('pointercancel', onPointerUp);
+      dom.removeEventListener('wheel', onWheel);
+      dom.removeEventListener('dblclick', onDbl);
       const disposable = splat as unknown as { dispose?: () => void } | null;
       disposable?.dispose?.();
       renderer.dispose();

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { TourMeta, SplatTourHandle, VoiceStatus } from '@/lib/types';
@@ -20,6 +20,12 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle');
   const [currentWaypoint, setCurrentWaypoint] = useState(tour.waypoints[0]);
   const [statusMsg, setStatusMsg] = useState('');
+  const [showHint, setShowHint] = useState(true); // controls hint, auto-fades
+
+  useEffect(() => {
+    const t = setTimeout(() => setShowHint(false), 7000);
+    return () => clearTimeout(t);
+  }, []);
 
   const onTourSpeech = useCallback(async (transcript: string) => {
     setVoiceStatus('thinking');
@@ -124,6 +130,26 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
         ) : (
           <TourPlaceholder tour={tour} currentWaypoint={currentWaypoint.id} />
         )}
+
+        {/* Controls hint (auto-fades) */}
+        <AnimatePresence>
+          {showHint && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.4, ease: EASE_OUT }}
+              className="pointer-events-none absolute inset-x-0 bottom-28 z-10 flex justify-center px-4"
+            >
+              <span className="glass-strong rounded-full px-4 py-2 text-center text-[11px] text-textdim">
+                <span className="text-text">Drag</span> to look around ·{' '}
+                <span className="text-text">scroll</span> to zoom ·{' '}
+                <span className="text-text">double-click</span> to step forward · or use{' '}
+                <span className="text-accent">voice</span>
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Status overlay */}
         <div aria-live="polite" className="pointer-events-none absolute left-1/2 top-6 z-10 -translate-x-1/2">
