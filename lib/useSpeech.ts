@@ -47,6 +47,13 @@ let cachedVoice: SpeechSynthesisVoice | null = null;
 let resolvedOnce = false; // true once we resolved against a non-empty voice list
 let listenerAttached = false;
 
+// True while the app is talking, so continuous voice input can ignore the TTS and
+// not hear its own answers as new commands (prevents a feedback loop).
+let _speaking = false;
+export function isSpeaking(): boolean {
+  return _speaking;
+}
+
 function getSynth(): SpeechSynthesis | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -149,6 +156,13 @@ export function speak(text: string): void {
     u.pitch = PITCH;
     u.volume = VOLUME;
 
+    // Mark "speaking" so continuous voice input ignores our own audio. The flag
+    // clears when the utterance ends/errors (or on cancel).
+    _speaking = true;
+    u.onstart = () => { _speaking = true; };
+    u.onend = () => { _speaking = false; };
+    u.onerror = () => { _speaking = false; };
+
     // Chrome can stall TTS right after a cancel(); resume defensively.
     try {
       if (synth.paused) synth.resume();
@@ -158,11 +172,13 @@ export function speak(text: string): void {
 
     synth.speak(u);
   } catch {
+    _speaking = false;
     /* never throw to callers — voice is an enhancement, not a hard dependency */
   }
 }
 
 export function cancelSpeech(): void {
+  _speaking = false;
   const synth = getSynth();
   if (!synth) return;
   try {

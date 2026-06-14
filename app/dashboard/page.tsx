@@ -64,7 +64,9 @@ export default function DashboardPage() {
         {(['search', 'tour_open', 'question', 'appointment'] as const).map((k) => (
           <div key={k} className="glass rounded-xl p-3">
             <AnimatedNumber value={stats.counts[k] ?? 0} className="block text-2xl font-bold tabular-nums text-text" />
-            <p className="text-[11px] uppercase tracking-wider text-textdim">{META[k].label}s</p>
+            <p className="text-[11px] uppercase tracking-wider text-textdim">
+              {({ search: 'Searches', tour_open: 'Tours', question: 'Questions', appointment: 'Bookings' } as Record<string, string>)[k]}
+            </p>
           </div>
         ))}
         <div className="glass rounded-xl p-3">

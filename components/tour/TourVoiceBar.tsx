@@ -3,6 +3,8 @@ import { useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import type { VoiceStatus } from '@/lib/types';
 import { useVoiceInput } from '@/lib/useVoiceInput';
+import { isSpeaking, speak } from '@/lib/useSpeech';
+import { isEndPhrase } from '@/lib/voiceEnd';
 import { EASE_OUT } from '@/lib/motion';
 import MicButton from '@/components/finder/MicButton';
 
@@ -12,30 +14,34 @@ interface TourVoiceBarProps {
 }
 
 export default function TourVoiceBar({ onSpeech, externalStatus }: TourVoiceBarProps) {
-  const [status, setStatus] = useState<VoiceStatus>('idle');
   const [textInput, setTextInput] = useState('');
 
+  // Conversation mode: once started, the mic keeps listening through many commands
+  // and questions. It stops only when the user taps the mic or says "stop"/"end".
   const handleTranscriptRef = useRef<(t: string) => void>(null!);
   handleTranscriptRef.current = (t: string) => {
-    stop();
-    setStatus('idle');
-    onSpeech(t);
+    if (isSpeaking()) return; // ignore our own spoken answers — prevents a feedback loop
+    if (isEndPhrase(t)) {
+      stop();
+      speak("Okay, I'll stop listening. Tap the mic when you want me back.");
+      return;
+    }
+    onSpeech(t); // act on it and KEEP listening
   };
 
   const stableHandler = useCallback((t: string) => handleTranscriptRef.current(t), []);
-  const { interim, start, stop, supported } = useVoiceInput(stableHandler);
+  const { listening, interim, start, stop, supported } = useVoiceInput(stableHandler);
 
-  const displayStatus = externalStatus ?? status;
+  // Mic shows "Listening…" continuously between commands; thinking/speaking briefly override.
+  const displayStatus: VoiceStatus =
+    externalStatus === 'thinking' || externalStatus === 'speaking'
+      ? externalStatus
+      : listening
+        ? 'listening'
+        : 'idle';
 
-  const handleStart = useCallback(() => {
-    setStatus('listening');
-    start();
-  }, [start]);
-
-  const handleStop = useCallback(() => {
-    setStatus('idle');
-    stop();
-  }, [stop]);
+  const handleStart = useCallback(() => start(), [start]);
+  const handleStop = useCallback(() => stop(), [stop]);
 
   function handleTextSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -103,6 +109,10 @@ export default function TourVoiceBar({ onSpeech, externalStatus }: TourVoiceBarP
           <span className="text-accent">&ldquo;how much is rent?&rdquo;</span>,{' '}
           <span className="text-accent">&ldquo;is it wheelchair accessible?&rdquo;</span>,{' '}
           <span className="text-accent">&ldquo;when was it built?&rdquo;</span>
+          <br />
+          <span className="text-textdim/60">
+            Tap the mic once, then keep talking — say <span className="text-accent">&ldquo;stop&rdquo;</span> or tap again to end.
+          </span>
         </p>
       )}
     </motion.div>
