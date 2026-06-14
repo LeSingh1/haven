@@ -53,10 +53,15 @@ export default function DashboardPage() {
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-text">Activity</h1>
           <p className="text-sm text-textdim">Live log of what people are doing across Haven.</p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-good/40 bg-good/10 px-3 py-1 text-xs text-good">
-          <span className={`h-1.5 w-1.5 rounded-full bg-good transition-opacity ${live ? 'opacity-100' : 'opacity-30'}`} />
-          Live
-        </span>
+        <div className="flex items-center gap-2">
+          <Link href="/calls" className="btn-ghost inline-flex min-h-[34px] shrink-0 items-center rounded-lg px-3.5 text-xs font-semibold">
+            Call history →
+          </Link>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-good/40 bg-good/10 px-3 py-1 text-xs text-good">
+            <span className={`h-1.5 w-1.5 rounded-full bg-good transition-opacity ${live ? 'opacity-100' : 'opacity-30'}`} />
+            Live
+          </span>
+        </div>
       </header>
 
       {/* Stat tiles */}
