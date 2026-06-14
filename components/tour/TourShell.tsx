@@ -1,9 +1,11 @@
 'use client';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { TourMeta, SplatTourHandle, VoiceStatus } from '@/lib/types';
 import { parseNav, ask } from '@/lib/api';
+import { parseCommand } from '@/lib/command';
 import { speak } from '@/lib/useSpeech';
 import { track } from '@/lib/track';
 import { mockListings } from '@/lib/mockListings';
@@ -12,6 +14,15 @@ import { popIn, EASE_OUT } from '@/lib/motion';
 import TourVoiceBar from './TourVoiceBar';
 import HouseInfoPanel from './HouseInfoPanel';
 import BookingModal from './BookingModal';
+import VoiceWaveform from './VoiceWaveform';
+
+// Voice phrases that signal an APP ACTION (booking / page nav) rather than 3D
+// movement or a question — those fall through to the existing nav -> Q&A flow.
+const ACTION_HINT = /\b(book|schedule|set up|arrange|make)\b.{0,20}\b(viewing|tour|appointment|showing|visit)\b|\bbook it\b|\bbook a\b|\bcall (the )?(realtor|agent|them|her|him)\b|\bset up an appointment\b|\bback to (search|finder)\b|\bsearch page\b|\bdashboard\b|\bgo home\b|\bhome ?page\b|\bfind (another|a different|more)\b/i;
+
+// Buyer identity used when booking hands-free by voice (optional, non-secret).
+const BUYER_NAME = process.env.NEXT_PUBLIC_DEMO_BUYER_NAME || 'Haven guest';
+const BUYER_PHONE = process.env.NEXT_PUBLIC_DEMO_BUYER_PHONE || '+1 (555) 010-0000';
 
 interface TourShellProps {
   tour: TourMeta;
@@ -29,7 +40,10 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
   const [showBooking, setShowBooking] = useState(false);
   const [answer, setAnswer] = useState<{ q: string; a: string } | null>(null);
   const answerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [countdown, setCountdown] = useState<{ secs: number; time?: string } | null>(null);
+  const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const router = useRouter();
   const listing = mockListings.find((l) => l.id === tour.listingId);
   const realtor = listing ? getHouseFacts(listing).realtor : { name: 'the listing agent', agency: '', phone: '' };
 
@@ -39,11 +53,98 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
     return () => clearTimeout(t);
   }, [tour.address, tour.listingId]);
 
+  // Voice "book it & call the realtor" → places the booking, which fires the real
+  // ElevenLabs/Twilio call. Hands-free, but gated by a cancellable countdown so a
+  // mis-heard phrase never silently dials.
+  const placeBookingCall = useCallback(async (time?: string) => {
+    setVoiceStatus('thinking');
+    setStatusMsg(`Calling ${realtor.name}…`);
+    try {
+      const res = await fetch('/api/appointment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listingId: tour.listingId,
+          address: tour.address,
+          name: BUYER_NAME,
+          phone: BUYER_PHONE,
+          preferredTime: time || 'Flexible',
+          realtorName: realtor.name,
+          realtorPhone: realtor.phone,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        track('appointment', `Voice-booked a viewing of ${tour.address}`, { listingId: tour.listingId });
+        setAnswer({ q: 'Book a viewing & call the realtor', a: data.confirmation });
+        if (data.spoken) speak(data.spoken);
+        if (answerTimer.current) clearTimeout(answerTimer.current);
+        answerTimer.current = setTimeout(() => setAnswer(null), 16000);
+      } else {
+        setAnswer({ q: 'Book a viewing', a: data.message || 'I could not place the booking.' });
+      }
+    } catch {
+      setAnswer({ q: 'Book a viewing', a: 'Network error placing the booking.' });
+    }
+    setStatusMsg('');
+    setVoiceStatus('idle');
+  }, [tour.listingId, tour.address, realtor.name, realtor.phone]);
+
+  const cancelCountdown = useCallback(() => {
+    if (countdownTimer.current) { clearInterval(countdownTimer.current); countdownTimer.current = null; }
+    setCountdown(null);
+    setStatusMsg('');
+    setVoiceStatus('idle');
+  }, []);
+
+  // Tick a cancellable 3-2-1 countdown, then place the call. Driven by an interval
+  // (not a render effect) so we never setState synchronously inside an effect body.
+  const startBookingCountdown = useCallback((time?: string) => {
+    if (countdownTimer.current) clearInterval(countdownTimer.current);
+    let secs = 3;
+    setCountdown({ secs, time });
+    countdownTimer.current = setInterval(() => {
+      secs -= 1;
+      if (secs <= 0) {
+        if (countdownTimer.current) { clearInterval(countdownTimer.current); countdownTimer.current = null; }
+        setCountdown(null);
+        void placeBookingCall(time);
+      } else {
+        setCountdown({ secs, time });
+      }
+    }, 1000);
+  }, [placeBookingCall]);
+
+  // Clear any pending countdown timer on unmount.
+  useEffect(() => () => { if (countdownTimer.current) clearInterval(countdownTimer.current); }, []);
+
   const onTourSpeech = useCallback(async (transcript: string) => {
     setVoiceStatus('thinking');
     setStatusMsg('Thinking…');
     if (answerTimer.current) clearTimeout(answerTimer.current);
     setAnswer(null);
+
+    // Agentic command check first — booking + app navigation. Spatial / info
+    // phrases fall through to the existing nav -> Q&A flow below.
+    if (ACTION_HINT.test(transcript)) {
+      const cmd = await parseCommand(transcript, { page: 'tour', listingId: tour.listingId });
+      if (cmd.action === 'book') {
+        if (cmd.speech) speak(cmd.speech);
+        setStatusMsg(cmd.speech || 'Setting up the viewing…');
+        startBookingCountdown(cmd.preferredTime);
+        return;
+      }
+      if (cmd.action === 'go_page' && cmd.page) {
+        if (cmd.speech) speak(cmd.speech);
+        router.push(cmd.page === 'dashboard' ? '/dashboard' : cmd.page === 'home' ? '/' : '/finder');
+        return;
+      }
+      if (cmd.action === 'open_house' && cmd.houseId) {
+        router.push(`/tour/${cmd.houseId}`);
+        return;
+      }
+      // tour_nav / question / none -> fall through to nav + Q&A
+    }
 
     const res = await parseNav(
       transcript,
@@ -83,7 +184,7 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
       answerTimer.current = setTimeout(() => setAnswer(null), 16000);
       setTimeout(() => setVoiceStatus('idle'), 3000);
     }
-  }, [tour.waypoints, tour.listingId, tour.address, currentWaypoint.label]);
+  }, [tour.waypoints, tour.listingId, tour.address, currentWaypoint.label, startBookingCountdown, router]);
 
   return (
     <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-bg">
@@ -146,6 +247,10 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
         ) : (
           <TourPlaceholder tour={tour} currentWaypoint={currentWaypoint.id} />
         )}
+
+        {/* Siri-style voice visualiser — centre of the viewport while the agent
+            thinks/talks (driven by voiceStatus; decorative, aria-hidden). */}
+        <VoiceWaveform status={voiceStatus} />
 
         {/* House info — Apple-glass facts panel, top-right */}
         <HouseInfoPanel
@@ -229,6 +334,41 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Book-and-call countdown (voice action, cancellable) */}
+      <AnimatePresence>
+        {countdown && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 flex items-center justify-center p-4"
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={cancelCountdown} />
+            <motion.div
+              initial={{ scale: 0.95, y: 12 }}
+              animate={{ scale: 1, y: 0 }}
+              className="glass-strong relative w-full max-w-sm rounded-2xl border-white/15 p-6 text-center"
+            >
+              <p className="text-[11px] uppercase tracking-wider text-textdim">Calling on your behalf</p>
+              <p className="mt-1 text-lg font-bold text-text">{realtor.name}</p>
+              <p className="text-xs text-textdim">
+                to book a viewing{countdown.time ? ` · ${countdown.time}` : ''}
+              </p>
+              <div className="mx-auto my-5 grid h-20 w-20 place-items-center rounded-full border-2 border-accent text-3xl font-bold text-accent shadow-[0_0_44px_-8px_rgba(34,211,238,0.7)]">
+                {countdown.secs}
+              </div>
+              <button
+                type="button"
+                onClick={cancelCountdown}
+                className="btn-ghost min-h-[44px] w-full rounded-xl text-sm font-semibold"
+              >
+                Cancel
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Voice bar */}
       <TourVoiceBar onSpeech={onTourSpeech} externalStatus={voiceStatus} />

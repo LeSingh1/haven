@@ -4,6 +4,7 @@
 // interested in <address>, let's set up a viewing") is the OTHER agent's piece —
 // see the clearly-marked hook below. This endpoint is the contract it plugs into.
 import { logActivity } from '@/lib/activityStore';
+import { placeRealtorCall } from '@/lib/realtorCall';
 
 export const runtime = 'nodejs';
 
@@ -58,15 +59,17 @@ export async function POST(req: Request): Promise<Response> {
     preferredTime: appointment.preferredTime,
   });
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // OTHER AGENT HOOK — autonomous realtor call.
-  // Place the outbound call here: Twilio dials `appointment.realtorPhone`, connects
-  // an ElevenLabs voice agent that introduces the buyer (`name`), references the
-  // listing (`appointment.address`), and proposes `appointment.preferredTime`. Then
-  // update `appointment.status` ('calling' -> 'scheduled' / 'voicemail' / 'failed')
-  // and (optionally) POST progress to /api/activity so the dashboard reflects it.
-  // e.g. await placeRealtorCall(appointment)
-  // ────────────────────────────────────────────────────────────────────────────
+  // ── Autonomous realtor call (Shaurya's call pipeline) ──
+  // The ElevenLabs "Haven Realtor Booking" agent dials DEMO_REALTOR_PHONE over
+  // Twilio and books the viewing, driven by per-listing dynamic variables.
+  // placeRealtorCall NEVER throws — it returns a simulated result if creds are
+  // missing or the call fails, so a booking always succeeds for the demo.
+  const call = await placeRealtorCall(appointment);
+  logActivity(
+    'appointment',
+    `Voice agent ${call.simulated ? 'simulated a call to' : 'is calling'} ${appointment.realtorName} about ${appointment.address || b.listingId}`,
+    { appointmentId: id, conversationId: call.conversationId, simulated: call.simulated, dialed: call.dialed }
+  );
 
   const spoken =
     `Got it, ${name.split(' ')[0]}. I'm reaching out to ${appointment.realtorName} to set up a viewing` +
@@ -76,6 +79,12 @@ export async function POST(req: Request): Promise<Response> {
   return Response.json({
     ok: true,
     appointment,
+    call: {
+      conversationId: call.conversationId,
+      status: call.status,
+      simulated: call.simulated,
+      dialed: call.dialed,
+    },
     confirmation: `Appointment request sent to ${appointment.realtorName}. You'll get a confirmation call at ${phone}.`,
     spoken,
   });

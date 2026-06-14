@@ -239,11 +239,17 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
         const c = camRef.current!;
         const eul = new THREE.Euler().setFromQuaternion(c.quaternion, 'YXZ');
         const deg = (r: number) => Math.round(THREE.MathUtils.radToDeg(r));
-        // eslint-disable-next-line no-console
-        console.log(
+        const pose =
           `position: [${c.position.x.toFixed(2)}, ${c.position.y.toFixed(2)}, ${c.position.z.toFixed(2)}], ` +
-            `rotation: [${deg(eul.x)}, ${deg(eul.y)}, ${deg(eul.z)}]`
-        );
+          `rotation: [${deg(eul.x)}, ${deg(eul.y)}, ${deg(eul.z)}]`;
+        // eslint-disable-next-line no-console
+        console.log('[waypoint pose] ' + pose);
+        // Copy a paste-ready pose so waypoints in lib/tourData.ts can be set exactly.
+        navigator.clipboard
+          ?.writeText(pose)
+          // eslint-disable-next-line no-console
+          .then(() => console.log('[waypoint pose] 📋 copied to clipboard'))
+          .catch(() => {});
       }
     };
     const onUp = (e: KeyboardEvent) => { keysRef.current[e.key.toLowerCase()] = false; };

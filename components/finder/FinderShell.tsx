@@ -3,10 +3,12 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT } from '@/lib/motion';
 import type { Listing, VoiceStatus } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 import { search } from '@/lib/api';
 import { track } from '@/lib/track';
 import { useVoiceInput } from '@/lib/useVoiceInput';
-import { cancelSpeech } from '@/lib/useSpeech';
+import { cancelSpeech, speak } from '@/lib/useSpeech';
+import { parseCommand } from '@/lib/command';
 import MicButton from './MicButton';
 import TranscriptBar from './TranscriptBar';
 import ResultsList from './ResultsList';
@@ -20,7 +22,12 @@ const SUGGESTED_QUERIES = [
   '1 bedroom elevator near BART',
 ];
 
+// Voice utterances that look like an app COMMAND (not a search) get routed through
+// the command brain. Plain searches skip it for a fast path.
+const COMMAND_HINT = /\b(open|view|tour|walk|step inside|take me|show me the|go back|dashboard|home ?page|landing|book|schedul|appointment|call (the|them))\b/i;
+
 export default function FinderShell() {
+  const router = useRouter();
   const [status, setStatus] = useState<VoiceStatus>('idle');
   const [transcript, setTranscript] = useState('');
   const [textInput, setTextInput] = useState('');
@@ -71,9 +78,33 @@ export default function FinderShell() {
 
   useEffect(() => () => { if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current); }, []);
 
-  const runSearchRef = useRef(runSearch);
-  useEffect(() => { runSearchRef.current = runSearch; }, [runSearch]);
-  const stableHandler = useCallback((t: string) => runSearchRef.current(t), []);
+  // Voice goes through the app command brain: "open the first one" / "go to the
+  // dashboard" navigate the app; everything else falls through to a normal search.
+  const handleVoice = useCallback(async (t: string) => {
+    if (!COMMAND_HINT.test(t)) { runSearch(t); return; }
+    setStatus('thinking');
+    const cmd = await parseCommand(t, {
+      page: 'finder',
+      listings: listings.map((l) => ({ id: l.id, address: l.address, city: l.city, rent: l.rent, beds: l.beds })),
+    });
+    if (cmd.action === 'open_house' && cmd.houseId) {
+      cancelSpeech();
+      if (cmd.speech) speak(cmd.speech);
+      router.push(`/tour/${cmd.houseId}`);
+      return;
+    }
+    if (cmd.action === 'go_page' && cmd.page) {
+      cancelSpeech();
+      if (cmd.speech) speak(cmd.speech);
+      router.push(cmd.page === 'dashboard' ? '/dashboard' : cmd.page === 'home' ? '/' : '/finder');
+      return;
+    }
+    runSearch(t); // search / question / none
+  }, [listings, router, runSearch]);
+
+  const handleVoiceRef = useRef(handleVoice);
+  useEffect(() => { handleVoiceRef.current = handleVoice; }, [handleVoice]);
+  const stableHandler = useCallback((t: string) => handleVoiceRef.current(t), []);
 
   const { listening, interim, start, stop, supported, error: voiceError } = useVoiceInput(stableHandler);
 

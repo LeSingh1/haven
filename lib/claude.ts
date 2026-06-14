@@ -7,6 +7,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import type { SearchQuery, NavCommand, AccessibilityFeature } from './types';
+import type { AppCommand, AppCommandContext } from './commandTypes';
 
 const MODEL = 'claude-opus-4-8';
 const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -93,12 +94,12 @@ Choose ONE "type":
 - "move": glide without turning. direction = "forward", "back", "left" (strafe), or "right" (strafe). amount = meters if given, else null. e.g. "step forward", "back up", "move closer to the window", "scoot left".
 - "zoom": dolly the camera. direction = "in" (closer) or "out" (farther). e.g. "zoom in", "get a closer look", "zoom out", "pull back".
 - "look": a generic glance when no specific direction is implied. e.g. "look around", "show me this".
-- "unknown": the phrase is not a navigation request at all.
+- "unknown": the phrase is NOT a movement request — MOST IMPORTANTLY, any QUESTION or request for INFORMATION about the home (its price, rent, value, deposit, size, square footage, bedrooms/bathrooms, accessibility, year built, pets, parking, laundry, programs, neighborhood/transit, or phrasings like "tell me about…", "how much…", "how many…", "is it…", "is there…", "does it have…", "what is…", "can I…"). Return "unknown" for these so the home Q&A answers them.
 
 Rules:
 - waypointId is null unless type is "goto". direction is null unless type is turn/tilt/move/zoom. amount is null unless a magnitude is clearly stated.
 - If the user names a room that is not listed, pick the closest listed room with "goto", or "reset" if none fits, and say so warmly.
-- Be liberal: almost every spatial phrase maps to turn/tilt/move/zoom/goto. Only use "unknown" for clearly non-navigation talk.`;
+- Movement vs. question: choose a movement type ONLY when the user wants to GO or LOOK somewhere ("take me to…", "go to…", "show me the kitchen", "turn around", "look up", "move forward", "zoom in", "next room"). If they are asking ABOUT the home rather than moving through it, return "unknown" — the Q&A will handle it.`;
 }
 
 /** Parse a spoken tour command into a NavCommand via Claude, constrained to real waypoints. */
@@ -203,11 +204,14 @@ export function keywordNav(
 }
 
 // ── house Q&A ──
-const ASK_SYSTEM = `You are a warm, knowledgeable real-estate guide helping someone explore ONE specific affordable, accessible home — hands-free, by voice. Answer their question about THIS home using ONLY the facts provided.
-- Be concise and conversational: 1-3 sentences, like you're standing in the home with them.
-- If they're looking at a specific room, ground the answer there when relevant.
-- If a detail isn't in the data, say you don't have it and offer to have the realtor confirm — never invent prices, dates, square footage, or features.
-- This is an accessibility-first product; be clear and friendly.`;
+const ASK_SYSTEM = `You are the voice of a smart, warm AI guide helping someone explore ONE specific affordable, accessible home entirely hands-free. Answer ANY spoken question about THIS home using ONLY the facts provided below. Your answer is read ALOUD, so it must sound natural.
+
+- Sound like a knowledgeable person standing in the home with them: friendly, direct, 1-3 short sentences. No lists, no markdown.
+- Use everything in the facts, and you MAY reason over them — combine or derive when it's grounded (e.g. compute price per square foot, infer "near transit" from the description, judge if it fits a mobility need from the accessibility features).
+- If they're viewing a specific room, ground the answer there when relevant.
+- HONESTY RULE: if the specific detail they asked about is NOT in the facts, say so plainly — e.g. "That information isn't listed for this home, but I can have the realtor confirm it for you." NEVER invent prices, dates, square footage, room counts, names, policies, or features. Saying "it's not listed" is always better than guessing.
+- If the question isn't about this home at all, gently steer back to the home.
+- Accessibility-first product: be clear, concrete, and kind.`;
 
 /** Answer a natural-language question about a specific home using its facts brief. */
 export async function answerHouseQuestion(
@@ -227,6 +231,123 @@ export async function answerHouseQuestion(
     .join(' ')
     .trim();
   return text || "I'm not certain about that — I can have the realtor follow up with you.";
+}
+
+// ── app command brain (agentic voice control across the whole app) ──
+const APP_ACTIONS = ['search', 'open_house', 'go_page', 'tour_nav', 'question', 'book', 'none'] as const;
+const APP_PAGES = ['finder', 'dashboard', 'home'] as const;
+
+const CommandSchema = z.object({
+  action: z.enum(APP_ACTIONS),
+  houseId: z.string().nullable(),
+  page: z.enum(APP_PAGES).nullable(),
+  preferredTime: z.string().nullable(),
+  speech: z.string(),
+});
+
+function commandSystem(ctx: AppCommandContext): string {
+  const where = ctx.page === 'finder'
+    ? 'the SEARCH page (a scrollable list of home results)'
+    : 'INSIDE a first-person 3D walkthrough of ONE specific home';
+  const list = ctx.listings?.length
+    ? ctx.listings
+        .map((l, i) => `  ${i + 1}. id "${l.id}" — ${l.address}, ${l.city}, $${l.rent}/mo, ${l.beds === 0 ? 'studio' : l.beds + 'bd'}`)
+        .join('\n')
+    : '  (no current results)';
+  const ctxBlock = ctx.page === 'finder'
+    ? `Current search results (use the EXACT id for open_house):\n${list}\n`
+    : `They are currently touring listing id "${ctx.listingId ?? 'unknown'}".\n`;
+  return `You are the voice command router for Haven, a hands-free affordable-housing app. The user is on ${where}. Map their spoken words to exactly ONE app action plus a short, warm spoken confirmation ("speech", one sentence).
+
+${ctxBlock}
+Choose ONE "action":
+- "search": they're describing a home to FIND — criteria like beds, price, city, accessibility. e.g. "two bedroom under fifteen hundred", "wheelchair accessible in Milpitas".
+- "open_house": they want to OPEN / VIEW / TOUR / step inside a SPECIFIC result. Set houseId to the matching id from the list (resolve "the first one", "the cheapest", "the Milpitas one", an address or rent). e.g. "open the first one", "take me into 421 Oak", "view the cheapest".
+- "go_page": navigate to another screen. page = "finder" (search / "go back"), "dashboard" (activity dashboard), or "home" (landing page). e.g. "go back to search", "open the dashboard", "go home".
+- "book": they want to BOOK a viewing / appointment and/or have the agent CALL the realtor for this home. Set preferredTime to any time mentioned ("this weekend", "tomorrow evening"), else null. e.g. "book a viewing", "schedule a tour for Saturday", "book it and call the realtor".
+- "tour_nav": (tour only) they want to MOVE or LOOK in the 3D space — walk, turn, go to a room. e.g. "go to the kitchen", "turn around", "look up", "next room".
+- "question": they're ASKING something about the home (price, size, accessibility, features, year, pets…). e.g. "how much is rent", "is it wheelchair accessible".
+- "none": greeting, unclear, or unrelated to the app.
+
+Rules:
+- houseId is set ONLY for open_house and MUST be one of the ids listed above (NEVER invent one). "open it" / "this one" while already touring is NOT open_house.
+- page is set ONLY for go_page.
+- On the finder, default to "search" unless they clearly reference opening a specific result or another screen. In the tour, default to "tour_nav" for spatial phrases and "question" for everything else informational.`;
+}
+
+/** Classify a spoken utterance into an app-wide action (agentic voice control). */
+export async function parseAppCommand(transcript: string, ctx: AppCommandContext): Promise<AppCommand> {
+  const msg = await client().messages.parse({
+    model: MODEL,
+    max_tokens: 200,
+    system: commandSystem(ctx),
+    messages: [{ role: 'user', content: transcript }],
+    output_config: { format: zodOutputFormat(CommandSchema) },
+  });
+  const p = msg.parsed_output;
+  if (!p) throw new Error('command: no parsed_output');
+
+  const cmd: AppCommand = { action: p.action, speech: p.speech || 'Okay.' };
+  if (p.action === 'open_house') {
+    // Constrain to a real id; if Claude invented one, defer to the deterministic parser.
+    if (p.houseId && ctx.listings?.some((l) => l.id === p.houseId)) cmd.houseId = p.houseId;
+    else return keywordCommand(transcript, ctx);
+  }
+  if (p.action === 'go_page' && p.page) cmd.page = p.page;
+  if (p.preferredTime) cmd.preferredTime = p.preferredTime;
+  return cmd;
+}
+
+function resolveHouseRef(
+  t: string,
+  listings: NonNullable<AppCommandContext['listings']>
+): string | undefined {
+  const ord: Record<string, number> = {
+    first: 0, '1st': 0, second: 1, '2nd': 1, third: 2, '3rd': 2, fourth: 3, '4th': 3, last: listings.length - 1,
+  };
+  for (const [w, i] of Object.entries(ord)) {
+    if (new RegExp(`\\b${w}\\b`).test(t) && listings[i]) return listings[i].id;
+  }
+  if (/\b(cheapest|lowest|least expensive|most affordable)\b/.test(t)) {
+    return [...listings].sort((a, b) => a.rent - b.rent)[0]?.id;
+  }
+  for (const l of listings) if (t.includes(l.city.toLowerCase())) return l.id;
+  for (const l of listings) {
+    const num = l.address.match(/^\d+/)?.[0];
+    if (num && t.includes(num)) return l.id;
+  }
+  if (/\b(it|that one|this one|the home|the house|that home|that place)\b/.test(t) && listings.length) return listings[0].id;
+  return undefined;
+}
+
+/** Deterministic command fallback (no key / Claude failure). */
+export function keywordCommand(transcript: string, ctx: AppCommandContext): AppCommand {
+  const t = ` ${transcript.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()} `;
+  const has = (re: RegExp) => re.test(t);
+
+  if (has(/\b(dashboard|activity feed|activity)\b/)) return { action: 'go_page', page: 'dashboard', speech: 'Opening the dashboard.' };
+  if (has(/\b(back to (search|finder)|search page|find (another|more|a different)|new search|go back)\b/)) return { action: 'go_page', page: 'finder', speech: 'Back to search.' };
+  if (has(/\b(home page|landing page|main page|go home)\b/)) return { action: 'go_page', page: 'home', speech: 'Going home.' };
+
+  if (
+    has(/\b(book|schedule|set up|arrange|make)\b.{0,24}\b(viewing|tour|appointment|showing|visit)\b/) ||
+    has(/\bbook it\b/) ||
+    has(/\bcall (the )?(realtor|agent|them|her|him)\b/) ||
+    has(/\bset up an appointment\b/)
+  ) {
+    return { action: 'book', speech: 'Setting up the viewing and calling the realtor.' };
+  }
+
+  if (ctx.page === 'finder' && ctx.listings?.length && has(/\b(open|view|tour|walk|step inside|take me|show me|see)\b/)) {
+    const id = resolveHouseRef(t, ctx.listings);
+    if (id) return { action: 'open_house', houseId: id, speech: 'Opening that home.' };
+  }
+
+  if (ctx.page === 'tour' && has(/\b(go to|take me|kitchen|bedroom|living|entrance|bookshelf|desk|play|turn|look|move|forward|back|zoom|next|previous|around|left|right|up|down)\b/)) {
+    return { action: 'tour_nav', speech: '' };
+  }
+
+  return ctx.page === 'finder' ? { action: 'search', speech: '' } : { action: 'question', speech: '' };
 }
 
 /** Tiny liveness probe used by /api/health. */
