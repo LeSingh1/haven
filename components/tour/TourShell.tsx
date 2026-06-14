@@ -18,7 +18,7 @@ import CallStatusCard from './CallStatusCard';
 
 // Voice phrases that signal an APP ACTION (booking / page nav) rather than 3D
 // movement or a question — those fall through to the existing nav -> Q&A flow.
-const ACTION_HINT = /\bbook(ing)?\b|\bschedule\b|\bappointment\b|\bviewing\b|\bset up\b|\bcreate a\b|\bcall (the )?(realtor|agent|them|her|him)\b|\bback to (search|finder)\b|\bsearch page\b|\bdashboard\b|\bgo home\b|\bhome ?page\b|\bfind (another|a different|more)\b/i;
+const ACTION_HINT = /\bbook(ing)?\b|\bschedule\b|\bappointment\b|\bviewing\b|\bset up\b|\bcreate a\b|\bmake a\b|\bcall\b|\bphone\b|\bcontact\b|\breach out\b|\bring\b|\bback to (search|finder)\b|\bsearch page\b|\bdashboard\b|\bgo home\b|\bhome ?page\b|\bfind (another|a different|more)\b/i;
 
 // Buyer identity used when booking hands-free by voice (optional, non-secret).
 const BUYER_NAME = process.env.NEXT_PUBLIC_DEMO_BUYER_NAME || 'Haven guest';

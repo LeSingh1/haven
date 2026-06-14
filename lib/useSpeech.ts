@@ -54,9 +54,18 @@ let _speaking = false;
 // recognition delivers the tail of our OWN audio a beat late, so this stops the
 // mic from hearing the app and treating it as a user command.
 const MIC_GRACE_MS = 900;
+// Hard safety cap: if speechSynthesis never fires onend/onerror (a known Chrome
+// stall), _speaking would get stuck true and SILENTLY gate the mic forever. This
+// guarantees it always clears so the mic can never die on us.
+const MAX_SPEAK_MS = 20000;
 let _graceTimer: ReturnType<typeof setTimeout> | undefined;
-function endSpeakingSoon(): void {
+let _hardTimer: ReturnType<typeof setTimeout> | undefined;
+function clearSpeakTimers(): void {
   if (_graceTimer) clearTimeout(_graceTimer);
+  if (_hardTimer) clearTimeout(_hardTimer);
+}
+function endSpeakingSoon(): void {
+  clearSpeakTimers();
   _graceTimer = setTimeout(() => { _speaking = false; _spokenText = ''; }, MIC_GRACE_MS);
 }
 export function isSpeaking(): boolean {
@@ -175,10 +184,13 @@ export function speak(text: string): void {
 
     // Mark "speaking" so continuous voice input ignores our own audio. The flag
     // clears when the utterance ends/errors (or on cancel).
-    if (_graceTimer) clearTimeout(_graceTimer);
+    clearSpeakTimers();
     _speaking = true;
     _spokenText = text.toLowerCase();
-    u.onstart = () => { if (_graceTimer) clearTimeout(_graceTimer); _speaking = true; };
+    // Failsafe: force-clear "speaking" even if onend never fires (Chrome stall),
+    // so the mic is never permanently gated.
+    _hardTimer = setTimeout(() => { _speaking = false; _spokenText = ''; }, MAX_SPEAK_MS);
+    u.onstart = () => { _speaking = true; };
     u.onend = endSpeakingSoon;
     u.onerror = endSpeakingSoon;
 
@@ -198,7 +210,7 @@ export function speak(text: string): void {
 }
 
 export function cancelSpeech(): void {
-  if (_graceTimer) clearTimeout(_graceTimer);
+  clearSpeakTimers();
   _speaking = false;
   _spokenText = '';
   const synth = getSynth();

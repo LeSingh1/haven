@@ -93,7 +93,7 @@
 
 **SHIVAM:** "A real call, booked on its own, using this home's exact details. From a voice search to a confirmed viewing — Maria never touched a keyboard."
 
-> ⚠️ **If audio lags / call drops:** Shaurya cuts to the **`/calls`** tab — the same conversation streams there as a live transcript. Narrate over it. Never hard-fails.
+> ⚠️ **If audio lags / call drops:** keep narrating — the booking already succeeded on screen. The full transcript lands on the **`/calls`** tab a few seconds *after* the call ends (it finalizes when the call completes, not mid-call), so wrap the call, then cut to `/calls` and read it back. Never hard-fails.
 
 ---
 
