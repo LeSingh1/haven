@@ -93,24 +93,35 @@ function fitScore(l: Listing, q: SearchQuery): number {
   return clamp01(b);
 }
 
+const MIN_RESULTS = 10; // always show a full grid; the demo opens the first card
+
 function filterAndRank(q: SearchQuery): Listing[] {
   const soft = isSoftRentCap((q.transcript || '').toLowerCase());
-  return mockListings
-    .filter((l) => {
-      if (q.maxRent && !soft && l.rent > q.maxRent) return false; // hard cap only when a number was spoken
-      if (q.minBeds !== undefined && l.beds < q.minBeds) return false;
-      if (q.city && !l.city.toLowerCase().includes(q.city.toLowerCase())) return false;
-      // some(), not every(): over-specifying accessibility must never zero out results
-      if (q.accessibility?.length && !q.accessibility.some((f) => l.accessibility.includes(f))) return false;
-      if (q.programs?.length && !q.programs.some((p) => l.programs.includes(p))) return false;
-      return true;
-    })
+  const passes = (l: Listing): boolean => {
+    if (q.maxRent && !soft && l.rent > q.maxRent) return false; // hard cap only when a number was spoken
+    if (q.minBeds !== undefined && l.beds < q.minBeds) return false;
+    if (q.city && !l.city.toLowerCase().includes(q.city.toLowerCase())) return false;
+    // some(), not every(): over-specifying accessibility must never zero out results
+    if (q.accessibility?.length && !q.accessibility.some((f) => l.accessibility.includes(f))) return false;
+    if (q.programs?.length && !q.programs.some((p) => l.programs.includes(p))) return false;
+    return true;
+  };
+  // Rank EVERY home by per-query relevance (best first).
+  const ranked = mockListings
     .map((l) => ({
       listing: { ...l, matchScore: Math.round(45 + 54 * fitScore(l, q)) },
       r: relevanceScore(l, q),
+      pass: passes(l),
     }))
-    .sort((a, b) => b.r - a.r || b.listing.matchScore - a.listing.matchScore || a.listing.id.localeCompare(b.listing.id))
-    .map((x) => x.listing);
+    .sort((a, b) => b.r - a.r || b.listing.matchScore - a.listing.matchScore || a.listing.id.localeCompare(b.listing.id));
+  // Genuine matches lead; backfill with the next-best homes so the grid is always
+  // full (>= MIN_RESULTS). The strongest match is always #1 — the card to open.
+  const matches = ranked.filter((x) => x.pass);
+  const ordered =
+    matches.length >= MIN_RESULTS
+      ? matches
+      : [...matches, ...ranked.filter((x) => !x.pass)].slice(0, MIN_RESULTS);
+  return ordered.map((x) => x.listing);
 }
 
 function summarize(filtered: Listing[]): string {
