@@ -175,26 +175,6 @@ body::after {
 }
 .ring-shimmer { animation: ring-shimmer 3.2s ease-in-out infinite; }
 
-/* Voice waveform — Siri-style "agent is talking" equaliser (tour centre) */
-.voice-wave { display: flex; align-items: center; gap: 7px; }
-@keyframes voice-wave {
-  0%, 100% { transform: scaleY(0.28); opacity: 0.5; }
-  50%      { transform: scaleY(1);    opacity: 1; }
-}
-.voice-wave__bar {
-  display: block;
-  width: 6px;
-  border-radius: 999px;
-  transform-origin: center;
-  background: linear-gradient(180deg, #67E8F9 0%, #22D3EE 55%, #06B6D4 100%);
-  box-shadow: 0 0 18px -2px rgba(34, 211, 238, 0.75);
-  animation: voice-wave 0.95s ease-in-out infinite;
-}
-.voice-wave--calm .voice-wave__bar {
-  animation-duration: 1.7s;
-  box-shadow: 0 0 12px -2px rgba(34, 211, 238, 0.5);
-}
-
 /* Respect prefers-reduced-motion — WCAG 2.3.3 */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

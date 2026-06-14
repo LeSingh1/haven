@@ -19,13 +19,19 @@ export default function TourVoiceBar({ onSpeech, externalStatus }: TourVoiceBarP
   // Conversation mode: once started, the mic keeps listening through many commands
   // and questions. It stops only when the user taps the mic or says "stop"/"end".
   const handleTranscriptRef = useRef<(t: string) => void>(null!);
+  const busyRef = useRef(false); // true while a command is mid-flight — blocks doubles
   handleTranscriptRef.current = (t: string) => {
-    if (isSpeaking()) return; // ignore our own spoken answers — prevents a feedback loop
+    // Ignore input while we're talking OR already handling a command. The mic stays
+    // open (conversation mode), so without this it hears our own TTS, and one spoken
+    // sentence can finalize into segments that fire two overlapping responses.
+    if (isSpeaking() || externalStatus === 'thinking' || busyRef.current) return;
     if (isEndPhrase(t)) {
       stop();
       speak("Okay, I'll stop listening. Tap the mic when you want me back.");
       return;
     }
+    busyRef.current = true;
+    setTimeout(() => { busyRef.current = false; }, 1800); // one turn; TTS gate covers the rest
     onSpeech(t); // act on it and KEEP listening
   };
 

@@ -14,6 +14,7 @@ import { popIn, EASE_OUT } from '@/lib/motion';
 import TourVoiceBar from './TourVoiceBar';
 import HouseInfoPanel from './HouseInfoPanel';
 import BookingModal from './BookingModal';
+import CallStatusCard from './CallStatusCard';
 import VoiceWaveform from './VoiceWaveform';
 
 // Voice phrases that signal an APP ACTION (booking / page nav) rather than 3D
@@ -38,6 +39,7 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
   const [statusMsg, setStatusMsg] = useState('');
   const [showHint, setShowHint] = useState(true); // controls hint, auto-fades
   const [showBooking, setShowBooking] = useState(false);
+  const [callInfo, setCallInfo] = useState<{ conversationId: string | null; simulated: boolean; preferredTime: string } | null>(null);
   const [answer, setAnswer] = useState<{ q: string; a: string } | null>(null);
   const answerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [countdown, setCountdown] = useState<{ secs: number; time?: string } | null>(null);
@@ -76,10 +78,13 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
       const data = await res.json();
       if (data.ok) {
         track('appointment', `Voice-booked a viewing of ${tour.address}`, { listingId: tour.listingId });
-        setAnswer({ q: 'Book a viewing & call the realtor', a: data.confirmation });
         if (data.spoken) speak(data.spoken);
-        if (answerTimer.current) clearTimeout(answerTimer.current);
-        answerTimer.current = setTimeout(() => setAnswer(null), 16000);
+        // Show the live call view (status + transcript stream in).
+        setCallInfo({
+          conversationId: data.call?.conversationId ?? null,
+          simulated: !!data.call?.simulated,
+          preferredTime: time || 'Flexible',
+        });
       } else {
         setAnswer({ q: 'Book a viewing', a: data.message || 'I could not place the booking.' });
       }
@@ -383,6 +388,39 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
             realtorPhone={realtor.phone}
             onClose={() => setShowBooking(false)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Live realtor call — appears when a booking is made by voice */}
+      <AnimatePresence>
+        {callInfo && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setCallInfo(null)} />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: EASE_OUT }}
+              className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/15 shadow-2xl"
+              style={{ background: 'rgba(20,22,28,0.85)', backdropFilter: 'blur(24px) saturate(150%)' }}
+            >
+              <CallStatusCard
+                conversationId={callInfo.conversationId}
+                simulated={callInfo.simulated}
+                realtorName={realtor.name}
+                buyerPhone={BUYER_PHONE}
+                listingId={tour.listingId}
+                address={tour.address}
+                preferredTime={callInfo.preferredTime}
+                onClose={() => setCallInfo(null)}
+              />
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

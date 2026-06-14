@@ -48,7 +48,7 @@ function waypoints(): Waypoint[] {
   return [
     { id: 'wp-entrance', label: 'Entrance', position: [0, 0, 4], rotation: [0, 0, 0],
       description: 'Step inside — a bright, open, step-free room with a clear path.' },
-    { id: 'wp-bookshelves', label: 'Bookshelves', position: [-0.2, 0, 3.7], rotation: [0, 60, 0],
+    { id: 'wp-bookshelves', label: 'Bookshelves', position: [-0.2, 0, 3.7], rotation: [0, 33, 0],
       description: 'Built-in storage and full bookshelves along the left wall.' },
     { id: 'wp-desk', label: 'Study Desk', position: [0.05, 0, 3.5], rotation: [-4, -8, 0],
       description: 'A quiet desk and workspace beneath the window.' },

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { speak } from '@/lib/useSpeech';
 import { track } from '@/lib/track';
 import { EASE_OUT } from '@/lib/motion';
+import CallStatusCard from './CallStatusCard';
 
 interface Props {
   listingId: string;
@@ -22,7 +23,7 @@ export default function BookingModal({ listingId, address, realtorName, realtorP
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [done, setDone] = useState<{ confirmation: string } | null>(null);
+  const [call, setCall] = useState<{ conversationId: string | null; simulated: boolean } | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,7 +39,7 @@ export default function BookingModal({ listingId, address, realtorName, realtorP
       if (!data.ok) { setError(data.message || 'Something went wrong.'); setBusy(false); return; }
       track('appointment', `Booked a viewing of ${address}`, { listingId });
       if (data.spoken) speak(data.spoken);
-      setDone({ confirmation: data.confirmation });
+      setCall({ conversationId: data.call?.conversationId ?? null, simulated: !!data.call?.simulated });
     } catch {
       setError('Network error — please try again.');
     }
@@ -60,27 +61,30 @@ export default function BookingModal({ listingId, address, realtorName, realtorP
         className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/15 shadow-2xl"
         style={{ background: 'rgba(20,22,28,0.85)', backdropFilter: 'blur(24px) saturate(150%)' }}
       >
-        <div className="flex items-start justify-between px-6 pt-5">
-          <div>
-            <h2 className="text-lg font-bold text-white">Book a viewing</h2>
-            <p className="text-xs text-white/55">{address}</p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-white/50 hover:text-white">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="M18 6 6 18M6 6l12 12" /></svg>
-          </button>
-        </div>
-
-        {done ? (
-          <div className="px-6 py-8 text-center">
-            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-good/15 text-good">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6 9 17l-5-5" /></svg>
-            </div>
-            <p className="text-sm font-medium text-white">{done.confirmation}</p>
-            <p className="mt-2 text-xs text-white/50">Our voice agent is reaching out to {realtorName} now.</p>
-            <button type="button" onClick={onClose} className="btn-ghost mt-5 min-h-[44px] rounded-xl px-6 text-sm font-semibold">Done</button>
-          </div>
+        {call ? (
+          <CallStatusCard
+            conversationId={call.conversationId}
+            simulated={call.simulated}
+            realtorName={realtorName}
+            buyerPhone={phone}
+            listingId={listingId}
+            address={address}
+            preferredTime={time}
+            onClose={onClose}
+          />
         ) : (
-          <form onSubmit={submit} className="space-y-3 px-6 py-5">
+          <>
+            <div className="flex items-start justify-between px-6 pt-5">
+              <div>
+                <h2 className="text-lg font-bold text-white">Book a viewing</h2>
+                <p className="text-xs text-white/55">{address}</p>
+              </div>
+              <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-white/50 hover:text-white">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <form onSubmit={submit} className="space-y-3 px-6 py-5">
             <p className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/65">
               An AI voice agent will call <span className="text-white">{realtorName}</span> on your behalf to request a tour and confirm a time.
             </p>
@@ -118,7 +122,8 @@ export default function BookingModal({ listingId, address, realtorName, realtorP
             <button type="submit" disabled={busy} className="btn-neon min-h-[46px] w-full rounded-xl text-sm font-semibold disabled:opacity-60">
               {busy ? 'Sending request…' : 'Request the viewing'}
             </button>
-          </form>
+            </form>
+          </>
         )}
       </motion.div>
     </div>
