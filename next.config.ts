@@ -1,10 +1,8 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  // Lint still runs in the editor and via `npm run lint`; we just don't fail the
-  // production build on it. Several pre-existing react-hooks v6 warnings in the
-  // frontend (ref-in-render, set-state-in-effect) would otherwise block Vercel.
-  eslint: { ignoreDuringBuilds: true },
-};
+// Next 16 removed the build-time ESLint integration (no `eslint` config key /
+// `ignoreDuringBuilds`), so there's nothing to disable here — `next build` does
+// not run ESLint; lint runs separately via `npm run lint`.
+const nextConfig: NextConfig = {};
 
 export default nextConfig;
