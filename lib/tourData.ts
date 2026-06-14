@@ -13,68 +13,56 @@
 import type { TourMeta, Waypoint } from './types';
 import { mockListings } from './mockListings';
 
-// MULTI-ROOM tour: every waypoint is its OWN real Gaussian-splat scene (a distinct
-// room), hosted LOCALLY in public/splats so it serves same-origin (fast, no HF
-// streaming dependency at demo time). SplatTour swaps the scene when you change
-// rooms; a loading overlay covers each decode. TIGHT per-room `bounds` keep the
-// camera in each scene's densely-captured zone so it stays sharp.
-//
-// Scenes are real academic captures: Deep Blending "playroom" (30k, sharp) +
-// Mip-NeRF 360 room / kitchen / bonsai (7k). All 3DGS/COLMAP → Y-down, so a 180°
-// X flip ([1,0,0,0]). spawn position/rotation are tuned from each scene's gaussian
-// centroid (computed after the flip). Representative interiors, not captures of the
-// exact unit (framed as such in the UI). rotation = [pitch, yaw, roll] in degrees.
+// SINGLE real captured room. The 3D walkthrough covers ONE genuinely captured
+// space — the Deep Blending "playroom", a real study / play room. We deliberately
+// do NOT stitch in other houses' captures to fake extra rooms: every vantage below
+// is the SAME real space from a different angle. Rooms this capture doesn't include
+// (kitchen, bedrooms, bath…) are honestly reported as "not part of this tour" by
+// the nav layer (lib/claude.ts) rather than faked. 3DGS/COLMAP → Y-down, so a 180°
+// X flip ([1,0,0,0]); TIGHT bounds keep the camera in the dense zone so it's sharp.
+const ROOM = {
+  url: '/splats/playroom.ply',
+  quat: [1, 0, 0, 0] as [number, number, number, number],
+  spawn: {
+    position: [0, 0, 4] as [number, number, number],
+    rotation: [0, 0, 0] as [number, number, number],
+  },
+  bounds: {
+    min: [-1.4, -0.6, 2.7] as [number, number, number],
+    max: [1.4, 0.9, 4.4] as [number, number, number],
+  },
+};
+
+// Honest vantages of the ONE captured room (same house, different angles).
+// rotation = [pitch, yaw, roll] in degrees.
 function waypoints(): Waypoint[] {
   return [
-    {
-      id: 'wp-study', label: 'Study',
-      splatUrl: '/splats/playroom.ply', splatQuat: [1, 0, 0, 0],
-      position: [0, 0, 4], rotation: [0, 0, 0],
-      bounds: { min: [-1.4, -0.6, 2.7], max: [1.4, 0.9, 4.4] },
-      description: 'A bright home study — full bookshelves, a desk under the window, and a soft reading corner.',
-    },
-    {
-      id: 'wp-living', label: 'Living Room',
-      splatUrl: '/splats/room-7k.splat', splatQuat: [1, 0, 0, 0],
-      position: [1.4, 0.8, 4.5], rotation: [0, 0, 0],
-      bounds: { min: [-0.5, 0, 2], max: [3.4, 2.4, 5.5] },
-      description: 'An open, step-free living space with room to turn a wheelchair.',
-    },
-    {
-      id: 'wp-kitchen', label: 'Kitchen',
-      splatUrl: '/splats/kitchen-7k.splat', splatQuat: [1, 0, 0, 0],
-      position: [-0.2, 0.5, 2.6], rotation: [-12, 0, 0],
-      bounds: { min: [-1.8, 0, -0.5], max: [1.2, 1.2, 3] },
-      description: 'A full kitchen with reachable counters and clear floor space.',
-    },
-    {
-      id: 'wp-nook', label: 'Reading Nook',
-      splatUrl: '/splats/bonsai-7k.splat', splatQuat: [1, 0, 0, 0],
-      position: [-0.3, 0.25, 1.8], rotation: [-16, 0, 0],
-      bounds: { min: [-1, -0.2, -0.5], max: [0.5, 0.8, 2] },
-      description: 'A quiet corner to sit and read among the plants.',
-    },
+    { id: 'wp-overview', label: 'Overview', position: [0, 0, 4], rotation: [0, 0, 0],
+      description: 'The home’s bright, step-free main room — bookshelves, a desk, and a soft play corner.' },
+    { id: 'wp-bookshelves', label: 'Bookshelves', position: [-0.2, 0, 3.7], rotation: [0, 33, 0],
+      description: 'Built-in storage and full bookshelves along the wall.' },
+    { id: 'wp-desk', label: 'Study Desk', position: [0.05, 0, 3.5], rotation: [-4, -8, 0],
+      description: 'A quiet desk and workspace beneath the window.' },
+    { id: 'wp-play', label: 'Play Area', position: [0.35, 0, 3.7], rotation: [-6, -26, 0],
+      description: 'An open corner with low, reachable shelves and floor space.' },
   ];
 }
 
-const CREDIT =
-  'Scenes: Deep Blending “playroom” (Hedman et al.) + Mip-NeRF 360 (Google) — real captures, research/non-commercial';
+const CREDIT = 'Scene: Deep Blending “playroom” (Hedman et al.) — real capture, research/non-commercial';
 
-// One tour per listing, keyed by the listing id (used as the tourId). Top-level
-// scene fields mirror the FIRST room so the viewer opens there.
+// One tour per listing, keyed by the listing id (used as the tourId). All listings
+// share this one captured room (a representative interior, framed as such in the UI).
 const BY_ID: Record<string, TourMeta> = {};
 mockListings.forEach((l) => {
-  const rooms = waypoints();
-  const first = rooms[0];
   BY_ID[l.id] = {
     id: l.id,
     listingId: l.id,
     address: `${l.address}, ${l.city}`,
-    waypoints: rooms,
-    splatUrl: first.splatUrl,
-    splatQuat: first.splatQuat,
-    spawn: { position: first.position, rotation: first.rotation },
-    bounds: first.bounds,
+    waypoints: waypoints(),
+    splatUrl: ROOM.url,
+    splatQuat: ROOM.quat,
+    spawn: ROOM.spawn,
+    bounds: ROOM.bounds,
     credit: CREDIT,
   };
 });

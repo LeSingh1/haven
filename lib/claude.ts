@@ -86,9 +86,9 @@ Named rooms in this tour (use these exact ids for a "goto"):
 ${list}
 
 Choose ONE "type":
-- "goto": go to a named room. Set waypointId to one of the ids above (never invent one). e.g. "take me to the kitchen", "show me the bedroom", "where's the living room".
+- "goto": go to one of the listed vantages above. Set waypointId to one of those exact ids (never invent one). e.g. "show me the bookshelves", "go to the desk", "the play area", "overview".
 - "next" / "prev": step to the next / previous room. ("continue", "keep going", "what's next" -> next; "go back", "previous room", "last one" -> prev).
-- "reset": return to the entrance / start over. ("start over", "go to the beginning", "back to the front door").
+- "reset": return to the overview / start over. ("start over", "go to the beginning", "show me the whole room").
 - "turn": rotate the view in place. direction = "left", "right", or "around" (180°). amount = degrees if a number is given ("turn right ninety" -> 90), else null. e.g. "turn around", "look to your left", "spin right", "face the window on the right".
 - "tilt": look up or down in place. direction = "up" or "down". amount = degrees if given, else null. e.g. "look up at the ceiling", "look down at the floor".
 - "move": glide without turning. direction = "forward", "back", "left" (strafe), or "right" (strafe). amount = meters if given, else null. e.g. "step forward", "back up", "move closer to the window", "scoot left".
@@ -98,7 +98,7 @@ Choose ONE "type":
 
 Rules:
 - waypointId is null unless type is "goto". direction is null unless type is turn/tilt/move/zoom. amount is null unless a magnitude is clearly stated.
-- If the user names a room that is not listed, pick the closest listed room with "goto", or "reset" if none fits, and say so warmly.
+- IMPORTANT — this 3D tour covers only ONE captured room (the vantages listed above). If the user asks to go to or see a room that is NOT one of those vantages (kitchen, bedroom, bathroom, living room, dining room, garage, hallway, closet, laundry, etc.), do NOT pretend or redirect to a vantage — return type "reset" with a "speech" that honestly says that room is not part of this 3D tour, e.g. "The kitchen isn't part of this tour — it only covers the home's main room." (The listing may still HAVE that room; it's just not in the 3D walkthrough.)
 - Movement vs. question: choose a movement type ONLY when the user wants to GO or LOOK somewhere ("take me to…", "go to…", "show me the kitchen", "turn around", "look up", "move forward", "zoom in", "next room"). If they are asking ABOUT the home rather than moving through it, return "unknown" — the Q&A will handle it.`;
 }
 
@@ -176,9 +176,19 @@ export function keywordNav(
   if (has(/\bleft\b/)) return { type: 'turn', direction: 'left', amount: deg, speech: 'Looking left.' };
   if (has(/\bright\b/)) return { type: 'turn', direction: 'right', amount: deg, speech: 'Looking right.' };
 
+  // 6.5. Rooms this single-room tour does NOT include — say so honestly instead of
+  // faking it or redirecting to a vantage. Only fires on a "go/show me there" intent
+  // so factual questions ("is there a kitchen?", "does it have a garage?") still fall
+  // through to the Q&A (the listing may HAVE the room — it's just not in the 3D tour).
+  const UNAVAILABLE =
+    /\b(kitchen|bedroom|bed room|master|bathroom|bath room|restroom|rest room|toilet|living room|livingroom|lounge|dining|family room|garage|basement|attic|hallway|hall way|closet|laundry|pantry|balcony|patio|backyard|back yard|garden|porch|den|nursery|ensuite|en suite|upstairs|downstairs)\b/;
+  const navIntent = /\b(go|going|take|show|see|view|visit|tour|where|head|walk|enter|reach|find|navigate|bring)\b/;
+  if (has(UNAVAILABLE) && has(navIntent))
+    return { type: 'reset', speech: "That room isn't part of this 3D tour — it only covers the home's main room." };
+
   // 7. Go to a named room (label or common synonym).
   const SYN: Record<string, RegExp> = {
-    entrance: /\b(entrance|entry|entryway|foyer|front door|doorway|overview|start|beginning)\b/,
+    overview: /\b(overview|entrance|entry|entryway|foyer|front door|doorway|start|beginning|whole room|main room|the room)\b/,
     bookshel: /\b(bookshel\w*|book\s*shel\w*|books?|shelves|shelf|storage|library)\b/,
     desk: /\b(desk|study|office|work\s*space|workspace|computer|window)\b/,
     play: /\b(play\s*corner|play\s*area|play|toys?|mat|kids?|reading|nook)\b/,
