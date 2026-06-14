@@ -45,12 +45,32 @@ function quatFromYawPitch(yawDeg: number, pitchDeg: number): THREE.Quaternion {
 
 const clampNum = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
+const DEFAULT_BOUNDS = {
+  min: [-15, -8, -15] as [number, number, number],
+  max: [15, 8, 15] as [number, number, number],
+};
+
+// Resolve the scene for room i: a waypoint may carry its OWN splat (multi-room),
+// otherwise the tour's single scene is used. position/rotation are that room's
+// spawn pose. Lets the viewer swap real rooms as you navigate.
+function roomScene(tour: TourMeta, i: number) {
+  const w = tour.waypoints?.[i];
+  return {
+    url: w?.splatUrl ?? tour.splatUrl ?? '/splats/sample.spz',
+    quat: (w?.splatQuat ?? tour.splatQuat ?? [1, 0, 0, 0]) as [number, number, number, number],
+    bounds: w?.bounds ?? tour.bounds ?? DEFAULT_BOUNDS,
+    pos: (w?.position ?? tour.spawn?.position ?? [0, 0, 4]) as [number, number, number],
+    rot: (w?.rotation ?? tour.spawn?.rotation ?? [0, 0, 0]) as [number, number, number],
+  };
+}
+
 const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
   { tour, onReady, reducedMotion = false },
   ref
 ) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [roomIndex, setRoomIndex] = useState(0); // which room's scene is loaded
   const camRef = useRef<THREE.PerspectiveCamera | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
   const idxRef = useRef(0);
@@ -82,18 +102,22 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
       const cam = camRef.current;
       if (!cam) return;
       const wps = tour.waypoints;
-      const b = tour.bounds ?? { min: [-15, -8, -15] as const, max: [15, 8, 15] as const };
+      const b = roomScene(tour, idxRef.current).bounds;
       const clampPos = (v: THREE.Vector3) => {
         v.x = clampNum(v.x, b.min[0], b.max[0]);
         v.y = clampNum(v.y, b.min[1], b.max[1]);
         v.z = clampNum(v.z, b.min[2], b.max[2]);
         return v;
       };
-      // Jump to waypoint i: set yaw/pitch from its rotation and fly there.
+      // Go to waypoint i. In a multi-room tour each waypoint is its own scene, so a
+      // different splat means SWAP the room (the load effect re-spawns the camera);
+      // the same scene just glides to that vantage.
       const gotoWp = (i: number) => {
         const w = wps[i];
         if (!w) return;
+        const switching = roomScene(tour, i).url !== roomScene(tour, idxRef.current).url;
         idxRef.current = i;
+        if (switching) { setRoomIndex(i); return; }
         yawRef.current = w.rotation?.[1] ?? 0;
         pitchRef.current = clampNum(w.rotation?.[0] ?? 0, -80, 80);
         glide(new THREE.Vector3(...w.position), quatFromYawPitch(yawRef.current, pitchRef.current), 1.3);
@@ -179,17 +203,18 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
     let cancelled = false;
     setStatus('loading');
 
-    const bounds = tour.bounds ?? { min: [-15, -8, -15] as const, max: [15, 8, 15] as const };
-    const splatUrl = tour.splatUrl ?? '/splats/sample.spz';
+    const scn = roomScene(tour, roomIndex);
+    const bounds = scn.bounds;
+    const splatUrl = scn.url;
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(60, mount.clientWidth / mount.clientHeight, 0.01, 1000);
-    camera.position.set(...(tour.spawn?.position ?? [0, 0, 4]));
-    camera.quaternion.copy(eulerToQuat(tour.spawn?.rotation));
+    camera.position.set(...scn.pos);
+    yawRef.current = scn.rot[1] ?? 0;
+    pitchRef.current = clampNum(scn.rot[0] ?? 0, -80, 80);
+    camera.quaternion.copy(quatFromYawPitch(yawRef.current, pitchRef.current));
     camRef.current = camera;
-    yawRef.current = tour.spawn?.rotation?.[1] ?? 0;
-    pitchRef.current = clampNum(tour.spawn?.rotation?.[0] ?? 0, -80, 80);
-    idxRef.current = 0;
+    idxRef.current = roomIndex;
     mount.tabIndex = -1; // focusable so a click guarantees keydown reaches us
 
     // preserveDrawingBuffer lets the canvas be screenshotted/sampled (used for
@@ -207,7 +232,7 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
       splat = new SplatMesh({ url: splatUrl });
       // Orientation depends on the capture pipeline: 3DGS/COLMAP scenes are Y-down
       // (180° X flip [1,0,0,0]); Marble/Forge .spz are Y-up (identity [0,0,0,1]).
-      splat.quaternion.set(...(tour.splatQuat ?? [1, 0, 0, 0]));
+      splat.quaternion.set(...scn.quat);
       scene.add(splat);
       // Spark resolves `initialized` once the splat is decoded and ready to draw.
       // Until then the scene is empty (black) — drive the loading overlay off this.
@@ -392,7 +417,7 @@ const SplatTour = forwardRef<SplatTourHandle, Props>(function SplatTour(
       renderer.dispose();
       if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
     };
-  }, [tour]);
+  }, [tour, roomIndex]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>

@@ -3,7 +3,7 @@ import { useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import type { VoiceStatus } from '@/lib/types';
 import { useVoiceInput } from '@/lib/useVoiceInput';
-import { isSpeaking, speak } from '@/lib/useSpeech';
+import { speak } from '@/lib/useSpeech';
 import { isEndPhrase } from '@/lib/voiceEnd';
 import { EASE_OUT } from '@/lib/motion';
 import MicButton from '@/components/finder/MicButton';
@@ -19,19 +19,18 @@ export default function TourVoiceBar({ onSpeech, externalStatus }: TourVoiceBarP
   // Conversation mode: once started, the mic keeps listening through many commands
   // and questions. It stops only when the user taps the mic or says "stop"/"end".
   const handleTranscriptRef = useRef<(t: string) => void>(null!);
-  const busyRef = useRef(false); // true while a command is mid-flight — blocks doubles
   handleTranscriptRef.current = (t: string) => {
-    // Ignore input while we're talking OR already handling a command. The mic stays
-    // open (conversation mode), so without this it hears our own TTS, and one spoken
-    // sentence can finalize into segments that fire two overlapping responses.
-    if (isSpeaking() || externalStatus === 'thinking' || busyRef.current) return;
+    // useVoiceInput already filters out our own TTS echo and cancels speech the
+    // instant the user barges in, so whatever reaches here is genuine user speech.
+    // We only skip while mid-parse of the PREVIOUS command (so one in-flight command
+    // isn't acted on twice). We deliberately do NOT block while speaking — that's
+    // exactly what lets the user talk over Haven and cut it off.
+    if (externalStatus === 'thinking') return;
     if (isEndPhrase(t)) {
       stop();
       speak("Okay, I'll stop listening. Tap the mic when you want me back.");
       return;
     }
-    busyRef.current = true;
-    setTimeout(() => { busyRef.current = false; }, 1800); // one turn; TTS gate covers the rest
     onSpeech(t); // act on it and KEEP listening
   };
 
@@ -107,20 +106,6 @@ export default function TourVoiceBar({ onSpeech, externalStatus }: TourVoiceBarP
         </form>
       </div>
 
-      {supported && (
-        <p className="mt-3 text-center text-[11px] leading-relaxed text-textdim/80">
-          Navigate: <span className="text-accent">&ldquo;go to the desk&rdquo;</span>,{' '}
-          <span className="text-accent">&ldquo;turn around&rdquo;</span>,{' '}
-          <span className="text-accent">&ldquo;zoom in&rdquo;</span>{' '}· Ask:{' '}
-          <span className="text-accent">&ldquo;how much is rent?&rdquo;</span>,{' '}
-          <span className="text-accent">&ldquo;is it wheelchair accessible?&rdquo;</span>,{' '}
-          <span className="text-accent">&ldquo;when was it built?&rdquo;</span>
-          <br />
-          <span className="text-textdim/60">
-            Tap the mic once, then keep talking — say <span className="text-accent">&ldquo;stop&rdquo;</span> or tap again to end.
-          </span>
-        </p>
-      )}
     </motion.div>
   );
 }

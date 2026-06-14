@@ -66,9 +66,20 @@ export function useVoiceInput(onTranscript: (t: string) => void) {
           cancelSpeech();
         }
         onTranscript(f);
+      } else if (speaking) {
+        // We're still talking and the mic also hears our own TTS. If the interim is
+        // just a slice of what we're saying, it's that echo — hide it. Anything else
+        // means the user started talking over us: cut our speech IMMEDIATELY (on the
+        // interim, before they even finish the sentence) so they take over at once.
+        const itmLower = itm.trim().toLowerCase();
+        if (itmLower && !spokenText().includes(itmLower)) {
+          cancelSpeech();
+          setInterim(itm);
+        } else {
+          setInterim('');
+        }
       } else {
-        // Don't surface our own spoken words back to the UI as interim text.
-        setInterim(speaking ? '' : itm);
+        setInterim(itm);
       }
     };
 

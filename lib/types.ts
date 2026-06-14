@@ -57,6 +57,16 @@ export interface Waypoint {
   position: [number, number, number];
   rotation?: [number, number, number];
   description?: string;
+  // ── Multi-room tours (optional, added by Shaurya): when a waypoint carries its
+  //    OWN scene, navigating to it loads a DIFFERENT splat (a distinct room). If
+  //    unset, the waypoint is a vantage within the tour's single scene. position
+  //    / rotation double as the spawn pose for that room. ──
+  /** This waypoint's own splat (.ply/.spz/.splat). Triggers a scene swap. */
+  splatUrl?: string;
+  /** Per-room splat orientation quaternion [x,y,z,w] (see TourMeta.splatQuat). */
+  splatQuat?: [number, number, number, number];
+  /** Per-room movement clamp. */
+  bounds?: { min: [number, number, number]; max: [number, number, number] };
 }
 
 export interface TourMeta {

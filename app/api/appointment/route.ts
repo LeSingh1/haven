@@ -5,6 +5,7 @@
 // see the clearly-marked hook below. This endpoint is the contract it plugs into.
 import { logActivity } from '@/lib/activityStore';
 import { placeRealtorCall } from '@/lib/realtorCall';
+import { logCall } from '@/lib/callsStore';
 
 export const runtime = 'nodejs';
 
@@ -70,6 +71,19 @@ export async function POST(req: Request): Promise<Response> {
     `Voice agent ${call.simulated ? 'simulated a call to' : 'is calling'} ${appointment.realtorName} about ${appointment.address || b.listingId}`,
     { appointmentId: id, conversationId: call.conversationId, simulated: call.simulated, dialed: call.dialed }
   );
+  // Record the call for Call History — with conversationId the transcript can be
+  // pulled later via /api/appointment/status.
+  logCall({
+    conversationId: call.conversationId,
+    simulated: call.simulated,
+    listingId: appointment.listingId,
+    address: appointment.address,
+    realtorName: appointment.realtorName,
+    realtorPhone: appointment.realtorPhone,
+    callerName: appointment.name,
+    preferredTime: appointment.preferredTime,
+    dialed: call.dialed,
+  });
 
   const spoken =
     `Got it, ${name.split(' ')[0]}. I'm reaching out to ${appointment.realtorName} to set up a viewing` +

@@ -330,10 +330,11 @@ export function keywordCommand(transcript: string, ctx: AppCommandContext): AppC
   if (has(/\b(home page|landing page|main page|go home)\b/)) return { action: 'go_page', page: 'home', speech: 'Going home.' };
 
   if (
-    has(/\b(book|schedule|set up|arrange|make)\b.{0,24}\b(viewing|tour|appointment|showing|visit)\b/) ||
-    has(/\bbook it\b/) ||
-    has(/\bcall (the )?(realtor|agent|them|her|him)\b/) ||
-    has(/\bset up an appointment\b/)
+    has(/\bbook(ing)?\b/) ||
+    has(/\bschedule\b/) ||
+    has(/\bappointment\b/) ||
+    has(/\b(set up|create|make|arrange)\b.{0,24}\b(booking|viewing|tour|appointment|showing|visit)\b/) ||
+    has(/\bcall (the )?(realtor|agent|them|her|him)\b/)
   ) {
     return { action: 'book', speech: 'Setting up the viewing and calling the realtor.' };
   }
