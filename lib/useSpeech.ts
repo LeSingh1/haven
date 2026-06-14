@@ -50,8 +50,25 @@ let listenerAttached = false;
 // True while the app is talking, so continuous voice input can ignore the TTS and
 // not hear its own answers as new commands (prevents a feedback loop).
 let _speaking = false;
+// After TTS ends we keep "speaking" true for a short grace period: speech
+// recognition delivers the tail of our OWN audio a beat late, so this stops the
+// mic from hearing the app and treating it as a user command.
+const MIC_GRACE_MS = 900;
+let _graceTimer: ReturnType<typeof setTimeout> | undefined;
+function endSpeakingSoon(): void {
+  if (_graceTimer) clearTimeout(_graceTimer);
+  _graceTimer = setTimeout(() => { _speaking = false; _spokenText = ''; }, MIC_GRACE_MS);
+}
 export function isSpeaking(): boolean {
   return _speaking;
+}
+
+// The text we're currently speaking (lowercased). Lets the voice input tell our own
+// TTS echo apart from a real user barge-in: an echo is a slice of this text; a user's
+// command (with extra words like "yes, can we…") is not.
+let _spokenText = '';
+export function spokenText(): string {
+  return _spokenText;
 }
 
 function getSynth(): SpeechSynthesis | null {
@@ -158,10 +175,12 @@ export function speak(text: string): void {
 
     // Mark "speaking" so continuous voice input ignores our own audio. The flag
     // clears when the utterance ends/errors (or on cancel).
+    if (_graceTimer) clearTimeout(_graceTimer);
     _speaking = true;
-    u.onstart = () => { _speaking = true; };
-    u.onend = () => { _speaking = false; };
-    u.onerror = () => { _speaking = false; };
+    _spokenText = text.toLowerCase();
+    u.onstart = () => { if (_graceTimer) clearTimeout(_graceTimer); _speaking = true; };
+    u.onend = endSpeakingSoon;
+    u.onerror = endSpeakingSoon;
 
     // Chrome can stall TTS right after a cancel(); resume defensively.
     try {
@@ -173,12 +192,15 @@ export function speak(text: string): void {
     synth.speak(u);
   } catch {
     _speaking = false;
+    _spokenText = '';
     /* never throw to callers — voice is an enhancement, not a hard dependency */
   }
 }
 
 export function cancelSpeech(): void {
+  if (_graceTimer) clearTimeout(_graceTimer);
   _speaking = false;
+  _spokenText = '';
   const synth = getSynth();
   if (!synth) return;
   try {

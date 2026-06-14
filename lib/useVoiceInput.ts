@@ -1,6 +1,7 @@
 // lib/useVoiceInput.ts — push-to-talk voice input via Web Speech API
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { isSpeaking, spokenText, cancelSpeech } from './useSpeech';
 
 // Maps Web Speech API error codes to plain, actionable guidance for the user.
 // Without this, a blocked mic fails silently — the user taps "speak" and nothing
@@ -51,10 +52,23 @@ export function useVoiceInput(onTranscript: (t: string) => void) {
         const res = e.results[i];
         res.isFinal ? (fin += res[0].transcript) : (itm += res[0].transcript);
       }
-      setInterim(itm);
+      const speaking = isSpeaking();
       if (fin.trim()) {
         setInterim('');
-        onTranscript(fin.trim());
+        const f = fin.trim();
+        // While we're talking, our own TTS can leak into an open mic. If the
+        // recognized text is just a slice of what we're currently saying, it's that
+        // echo — ignore it. Anything else means the user is barging in over us, so
+        // stop talking and act on it. This is what makes a quick "show me the 3D
+        // tour" work even while Haven is still reading the results aloud.
+        if (speaking) {
+          if (spokenText().includes(f.toLowerCase())) return;
+          cancelSpeech();
+        }
+        onTranscript(f);
+      } else {
+        // Don't surface our own spoken words back to the UI as interim text.
+        setInterim(speaking ? '' : itm);
       }
     };
 
