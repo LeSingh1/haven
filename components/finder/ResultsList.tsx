@@ -2,6 +2,7 @@
 import { motion } from 'framer-motion';
 import type { Listing } from '@/lib/types';
 import ListingCard from './ListingCard';
+import AnimatedNumber from '@/components/AnimatedNumber';
 import { staggerContainer, cardIn } from '@/lib/motion';
 
 interface ResultsListProps {
@@ -45,7 +46,7 @@ export default function ResultsList({ listings, totalCount, loading }: ResultsLi
       </div>
 
       <p className="mb-4 text-sm text-textdim">
-        <span className="font-semibold text-text">{totalCount}</span> result{totalCount !== 1 ? 's' : ''} found
+        <AnimatedNumber value={totalCount} className="font-semibold text-text" /> result{totalCount !== 1 ? 's' : ''} found
         {hiddenCount > 0 && ` — showing top ${shown.length}`}
       </p>
 

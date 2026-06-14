@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ActivityEvent } from '@/lib/activityStore';
 import { staggerContainer, fadeUpSm } from '@/lib/motion';
+import AnimatedNumber from '@/components/AnimatedNumber';
 
 const META: Record<string, { label: string; color: string; icon: string }> = {
   search: { label: 'Search', color: 'text-accent', icon: 'M21 21l-4.3-4.3M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z' },
@@ -62,12 +63,12 @@ export default function DashboardPage() {
       <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-5">
         {(['search', 'tour_open', 'question', 'appointment'] as const).map((k) => (
           <div key={k} className="glass rounded-xl p-3">
-            <p className="text-2xl font-bold tabular-nums text-text">{stats.counts[k] ?? 0}</p>
+            <AnimatedNumber value={stats.counts[k] ?? 0} className="block text-2xl font-bold tabular-nums text-text" />
             <p className="text-[11px] uppercase tracking-wider text-textdim">{META[k].label}s</p>
           </div>
         ))}
         <div className="glass rounded-xl p-3">
-          <p className="text-2xl font-bold tabular-nums text-accent">{stats.total}</p>
+          <AnimatedNumber value={stats.total} className="block text-2xl font-bold tabular-nums text-accent" />
           <p className="text-[11px] uppercase tracking-wider text-textdim">Total</p>
         </div>
       </div>
