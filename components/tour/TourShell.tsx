@@ -15,11 +15,10 @@ import TourVoiceBar from './TourVoiceBar';
 import HouseInfoPanel from './HouseInfoPanel';
 import BookingModal from './BookingModal';
 import CallStatusCard from './CallStatusCard';
-import VoiceWaveform from './VoiceWaveform';
 
 // Voice phrases that signal an APP ACTION (booking / page nav) rather than 3D
 // movement or a question — those fall through to the existing nav -> Q&A flow.
-const ACTION_HINT = /\b(book|schedule|set up|arrange|make)\b.{0,20}\b(viewing|tour|appointment|showing|visit)\b|\bbook it\b|\bbook a\b|\bcall (the )?(realtor|agent|them|her|him)\b|\bset up an appointment\b|\bback to (search|finder)\b|\bsearch page\b|\bdashboard\b|\bgo home\b|\bhome ?page\b|\bfind (another|a different|more)\b/i;
+const ACTION_HINT = /\bbook(ing)?\b|\bschedule\b|\bappointment\b|\bviewing\b|\bset up\b|\bcreate a\b|\bcall (the )?(realtor|agent|them|her|him)\b|\bback to (search|finder)\b|\bsearch page\b|\bdashboard\b|\bgo home\b|\bhome ?page\b|\bfind (another|a different|more)\b/i;
 
 // Buyer identity used when booking hands-free by voice (optional, non-secret).
 const BUYER_NAME = process.env.NEXT_PUBLIC_DEMO_BUYER_NAME || 'Haven guest';
@@ -252,10 +251,6 @@ export default function TourShell({ tour, SplatTour }: TourShellProps) {
         ) : (
           <TourPlaceholder tour={tour} currentWaypoint={currentWaypoint.id} />
         )}
-
-        {/* Siri-style voice visualiser — centre of the viewport while the agent
-            thinks/talks (driven by voiceStatus; decorative, aria-hidden). */}
-        <VoiceWaveform status={voiceStatus} />
 
         {/* House info — Apple-glass facts panel, top-right */}
         <HouseInfoPanel
